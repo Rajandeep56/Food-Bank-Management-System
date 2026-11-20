@@ -1,15 +1,12 @@
 package model;
 
 import java.time.Instant;
-import java.time.LocalDate;
-
 import common.DonationStatus;
 
 public class Donation {
     private final int donationId;
     private final int donorId;
     private final int recordedBy;
-    private String itemName;
     private int categoryId;
     private int quantity;
     private String unit;
@@ -24,7 +21,6 @@ public class Donation {
         this.donationId = donationId;
         this.donorId = donorId;
         this.recordedBy = recordedBy;
-        this.itemName = itemName;
         this.categoryId = categoryId;
         this.quantity = quantity;
         this.unit = unit;
@@ -95,7 +91,7 @@ public class Donation {
             throw new IllegalArgumentException("Invalid donation details");
         }
 
-        this.itemName = itemName.trim();
+        itemName.trim();
         this.categoryId = categoryId;
         this.quantity = quantity;
         this.unit = unit.trim();

@@ -1,6 +1,5 @@
 package model;
 
-import java.sql.*;
 import java.time.*;
 
 // Records whats currently available in the inventory

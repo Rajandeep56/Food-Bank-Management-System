@@ -27,8 +27,6 @@ public class NotificationService {
 
     // stops the same item being alerted twice
     private final Set<Integer> alertedInventoryIds = new HashSet<>();
-    private final DecliningStockDetector decliningStockDetector;
-
     private final Map<String, LocalDate> lastStockAlert = new HashMap<>();
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
@@ -45,7 +43,6 @@ public class NotificationService {
         this.hamperRequestRepository = hamperRequestRepository;
         this.categoryRepository = categoryRepository;
         this.expiryRiskDetector = expiryRiskDetector;
-        this.decliningStockDetector = decliningStockDetector;
     }
 
     // missed or delayed pickup -> alert every coordinator

@@ -17,7 +17,6 @@ import common.NotificationType;
 
 public class InventoryWasteReport extends Report {
 
-    private final InventoryRepository inventoryRepository;
     private final NotificationRepository notificationRepository;
     private final CategoryRepository categoryRepository;
     
@@ -41,7 +40,6 @@ public class InventoryWasteReport extends Report {
                 );
             }
 
-            this.inventoryRepository = inventoryRepository;
             this.notificationRepository = notificationRepository;
             this.inventoryService = inventoryService;
             this.categoryRepository = categoryRepository;

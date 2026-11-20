@@ -7,7 +7,6 @@ import Repository.InventoryRepository;
 import Repository.UserRepository;
 import common.RecipientApprovalStatus;
 import model.Category;
-import model.Coordinator;
 import model.InventoryHistory;
 import model.InventoryItem;
 import model.Recipient;

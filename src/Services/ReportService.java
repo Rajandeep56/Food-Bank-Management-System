@@ -2,13 +2,10 @@ package Services;
 
 import Repository.UserRepository;
 import model.User;
-import model.Coordinator;
 import model.Report;
 import common.ReportPeriodType;
 
 public class ReportService {
-
-    private final UserRepository userRepository;
 
     public ReportService(UserRepository userRepository) {
         if (userRepository == null) {
@@ -16,8 +13,6 @@ public class ReportService {
                 "User repository cannot be null"
             );
         }
-
-        this.userRepository = userRepository;
     }
 
     private User requireCoordinator(AuthService authService) {
