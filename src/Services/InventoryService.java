@@ -2,6 +2,7 @@ package Services;
 import model.InventoryItem;
 import common.InventoryChangeType;
 
+import java.time.LocalDate;
 import java.util.*;
 
 import Repository.InventoryRepository;
@@ -41,4 +42,103 @@ public class InventoryService {
      public List<InventoryHistory> getHistory() {
             return new ArrayList<>(history);
         }
+    public void processExpiredInventory(LocalDate today) {
+
+        for (InventoryItem item : inventoryRepository.getAllInventoryItems()) {
+
+            if (item.isExpired(today) && item.getQuantity() > 0) {
+
+                adjustStock(
+                    item.getInventoryId(),
+                    -item.getQuantity(),
+                    InventoryChangeType.WASTED
+                );
+            }
+        }
+    }
+
+    public List<InventoryItem> searchInventory(
+    String itemName,
+    Integer categoryId
+    ) {
+        List<InventoryItem> result = new ArrayList<>();
+
+        for (InventoryItem item :
+                inventoryRepository.getAllInventoryItems()) {
+
+            if (itemName != null &&
+                !item.getItemName().toLowerCase()
+                    .contains(itemName.trim().toLowerCase())) {
+                continue;
+            }
+
+            if (categoryId != null &&
+                item.getCategoryId() != categoryId) {
+                continue;
+            }
+
+            result.add(item);
+        }
+
+        return result;
+    }
+
+    public void discardInventory(int inventoryId) {
+
+        InventoryItem item =
+            inventoryRepository.getInventoryItemById(inventoryId);
+
+        int quantity = item.getQuantity();
+
+        if (quantity <= 0) {
+            throw new IllegalStateException(
+                "No remaining inventory to discard"
+            );
+        }
+
+        adjustStock(
+            inventoryId,
+            -quantity,
+            InventoryChangeType.WASTED
+        );
+    }
+
+    public void discardQuantity(int inventoryId, int quantity) {
+
+        if (quantity <= 0) {
+            throw new IllegalArgumentException(
+                "Quantity must be positive"
+            );
+        }
+
+        adjustStock(
+            inventoryId,
+            -quantity,
+            InventoryChangeType.WASTED
+        );
+    }
+
+    public void updateInventoryQuantity(int inventoryId, int newQuantity) {
+
+        if (newQuantity < 0) {
+            throw new IllegalArgumentException(
+                "Quantity cannot be negative"
+            );
+        }
+
+        InventoryItem item =
+            inventoryRepository.getInventoryItemById(inventoryId);
+
+        int difference = newQuantity - item.getQuantity();
+
+        if (difference == 0) {
+            return;
+        }
+
+        adjustStock(
+            inventoryId,
+            difference,
+            InventoryChangeType.MANUAL_ADJUSTMENT
+        );
+    }
 }

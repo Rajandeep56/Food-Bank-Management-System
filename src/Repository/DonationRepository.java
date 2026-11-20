@@ -1,4 +1,6 @@
 package Repository;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 import model.Donation;
@@ -34,5 +36,42 @@ public class DonationRepository{
 
     public List<Donation> findAll() {
         return new ArrayList<>(donations.values());
+    }
+
+    public List<Donation> searchDonations(
+    int donorId,
+    LocalDate startDate,
+    LocalDate endDate,
+    Integer categoryId
+    ) {
+        List<Donation> result = new ArrayList<>();
+
+        for (Donation donation : donations.values()) {
+
+            if (donation.getDonorId() != donorId) {
+                continue;
+            }
+
+            LocalDate date = donation.getDonationDate()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+
+            if (startDate != null && date.isBefore(startDate)) {
+                continue;
+            }
+
+            if (endDate != null && date.isAfter(endDate)) {
+                continue;
+            }
+
+            if (categoryId != null &&
+                donation.getCategoryId() != categoryId) {
+                continue;
+            }
+
+            result.add(donation);
+        }
+
+        return result;
     }
 }

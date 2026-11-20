@@ -1,11 +1,16 @@
 package Services;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import Repository.DistributionRepository;
 import Repository.FoodHamperRequestRepository;
 import Repository.InventoryRepository;
+import Repository.UserRepository;
 import common.HamperRequestStatus;
 import common.InventoryChangeType;
 import common.PickupStatus;
@@ -13,6 +18,7 @@ import model.Distribution;
 import model.DistributionItem;
 import model.FoodHamperRequest;
 import model.InventoryItem;
+import model.User;
 
 public class DistributionService {
     private final DistributionRepository distributionRepository;
@@ -141,4 +147,116 @@ public class DistributionService {
         distribution.markPickupStatus(PickupStatus.DELAYED);
     }
 
+    public void setPickupTime(int distributionId, LocalTime pickupTime) {
+
+        Distribution distribution =
+            distributionRepository.findById(distributionId);
+
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
+            throw new IllegalStateException(
+                "Only scheduled pickups can be modified"
+            );
+        }
+
+        distribution.setPickupTime(pickupTime);
+    }
+
+    public List<Distribution> searchDistributions(
+    String recipientName,
+    LocalDate startDate,
+    LocalDate endDate,
+    UserRepository userRepository
+    ) {
+        List<Distribution> result = new ArrayList<>();
+
+        if (startDate != null && endDate != null &&
+            startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Invalid date range");
+        }
+
+        for (Distribution distribution : distributionRepository.findAll()) {
+
+            FoodHamperRequest request =
+                hamperRequestRepository.findById(distribution.getRequestId());
+
+            User recipient =
+                userRepository.findById(request.getRecipientId());
+
+            if (recipientName != null &&
+                !recipient.getName().toLowerCase()
+                    .contains(recipientName.trim().toLowerCase())) {
+                continue;
+            }
+
+            LocalDate date = distribution.getDistributionDate();
+
+            if (startDate != null && date.isBefore(startDate)) {
+                continue;
+            }
+
+            if (endDate != null && date.isAfter(endDate)) {
+                continue;
+            }
+
+            result.add(distribution);
+        }
+
+        return result;
+    }
+    public void deleteDistribution(int distributionId) {
+
+        Distribution distribution =
+            distributionRepository.findById(distributionId);
+
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
+            throw new IllegalStateException(
+                "Only scheduled distributions can be deleted"
+            );
+        }
+
+        distributionRepository.delete(distributionId);
+    }
+    public void updateDistributionItem(
+    int distributionId,
+    int inventoryId,
+    int newQuantity
+    ) {
+        Distribution distribution =
+            distributionRepository.findById(distributionId);
+
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
+            throw new IllegalStateException(
+                "Only scheduled distributions can be modified"
+            );
+        }
+
+        if (newQuantity <= 0) {
+            throw new IllegalArgumentException("Invalid quantity");
+        }
+
+        InventoryItem inventory =
+            inventoryRepository.getInventoryItemById(inventoryId);
+
+        if (newQuantity > inventory.getQuantity()) {
+            throw new IllegalStateException("Insufficient inventory");
+        }
+
+        for (DistributionItem item : distribution.getItems()) {
+            if (item.getInventoryId() == inventoryId) {
+                item.setQuantity(newQuantity);
+                return;
+            }
+        }
+
+        throw new IllegalArgumentException("Distribution item not found");
+    }
+    public void removeDistributionItem(
+    int distributionId,
+    int inventoryId
+        ) {
+            Distribution distribution =
+                distributionRepository.findById(distributionId);
+
+            distribution.removeItem(inventoryId);
+        }
 }

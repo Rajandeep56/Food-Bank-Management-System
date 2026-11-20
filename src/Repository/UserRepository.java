@@ -35,7 +35,7 @@ public class UserRepository {
     public List<User> findByRole(String role) {
         List<User> result = new ArrayList<>();
         for (User user : users.values()) {
-            if (user.getRole().equalsIgnoreCase(role)) {
+            if (user.isActive() && user.getRole().equalsIgnoreCase(role)) {
                 result.add(user);
             }
         }
@@ -47,10 +47,8 @@ public class UserRepository {
     }
 
 
-    public void delete(int userId) {
-        if (!users.containsKey(userId)) {
-            throw new IllegalArgumentException("User not found");
-        }
-        users.remove(userId);
+   public void delete(int userId) {
+        User user = findById(userId);
+        user.deactivate();
     }
 }

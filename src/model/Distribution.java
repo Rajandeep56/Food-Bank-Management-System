@@ -1,6 +1,7 @@
 package model;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 
 import common.PickupStatus;
@@ -11,6 +12,7 @@ public class Distribution {
     private final LocalDate distributionDate;
     private final List<DistributionItem> items = new ArrayList<>();
     private PickupStatus pickupStatus;
+    private LocalTime pickupTime;
     
     public Distribution(int distributionId, int requestId, LocalDate distributionDate) {
         if (distributionId <= 0 || requestId <= 0) {
@@ -41,6 +43,19 @@ public class Distribution {
         return pickupStatus;
     }
 
+    public LocalTime getPickupTime() {
+        return pickupTime;
+    }
+
+    public void setPickupTime(LocalTime pickupTime) {
+        if (pickupTime == null) {
+            throw new IllegalArgumentException(
+                "Pickup time cannot be null"
+            );
+        }
+
+        this.pickupTime = pickupTime;
+    }
     public void addItem(DistributionItem item) {
          if (item == null) {
             throw new IllegalArgumentException(
@@ -78,5 +93,23 @@ public class Distribution {
             );
         }
         this.pickupStatus = newStatus;
+    }
+    public void removeItem(int inventoryId) {
+
+        if (pickupStatus != PickupStatus.SCHEDULED) {
+            throw new IllegalStateException(
+                "Only scheduled distributions can be modified"
+            );
+        }
+
+        boolean removed = items.removeIf(
+            item -> item.getInventoryId() == inventoryId
+        );
+
+        if (!removed) {
+            throw new IllegalArgumentException(
+                "Distribution item not found"
+            );
+        }
     }
 }

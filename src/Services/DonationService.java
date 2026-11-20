@@ -1,19 +1,26 @@
 package Services;
 
+import model.Distribution;
 import model.Donation;
+import model.FoodHamperRequest;
 import model.InventoryItem;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import Repository.DistributionRepository;
 import Repository.DonationRepository;
+import Repository.FoodHamperRequestRepository;
 import common.DonationStatus;
 
 public class DonationService {
     private final DonationRepository donationRepository; // donationrepository handles donation
     private final InventoryService inventoryService; // inventoryservice handles inventory stock updates and history for auditing.
+    private final DistributionRepository distributionRepository;
+    private final FoodHamperRequestRepository requestRepository;
 
-    public DonationService(DonationRepository donationRepository, InventoryService inventoryService) {
+    public DonationService(DonationRepository donationRepository, InventoryService inventoryService, FoodHamperRequestRepository requestRepository, DistributionRepository distributionRepository) {
         if(donationRepository == null) {
             throw new IllegalArgumentException("DonationRepository cannot be null");
         }
@@ -22,6 +29,8 @@ public class DonationService {
         }
         this.donationRepository = donationRepository;
         this.inventoryService = inventoryService;
+        this.distributionRepository = distributionRepository;
+        this.requestRepository =  requestRepository;
     }
 
     //validates and save a new donation
@@ -83,5 +92,42 @@ public class DonationService {
         }
         return donationList.get(0);
     }
-    
+
+
+    public List<Distribution> searchDistributionHistory(
+    int recipientId,
+    LocalDate startDate,
+    LocalDate endDate
+    ) {
+        List<Distribution> result = new ArrayList<>();
+
+        if (startDate != null && endDate != null &&
+            startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Invalid date range");
+        }
+
+        for (Distribution distribution : distributionRepository.findAll()) {
+
+            FoodHamperRequest request =
+                requestRepository.findById(distribution.getRequestId());
+
+            if (request.getRecipientId() != recipientId) {
+                continue;
+            }
+
+            LocalDate date = distribution.getDistributionDate();
+
+            if (startDate != null && date.isBefore(startDate)) {
+                continue;
+            }
+
+            if (endDate != null && date.isAfter(endDate)) {
+                continue;
+            }
+
+            result.add(distribution);
+        }
+
+        return result;
+    }
 }

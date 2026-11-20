@@ -10,6 +10,7 @@ public abstract class User {
     private String phone;
     private final String role;
     private final Instant createdAt;
+    private boolean active = true;
 
     protected User(int userId, String name, String email, String passwordHash, String phone, String role) {
         if (userId <= 0) {
@@ -58,6 +59,13 @@ public abstract class User {
     }
     public Instant getCreatedAt() {
         return createdAt;
+    }
+    public boolean isActive() {
+        return active;
+    }
+
+    public void deactivate() {
+        this.active = false;
     }
 
 }

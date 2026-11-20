@@ -21,22 +21,25 @@ public class VolunteerShiftService {
         this.shiftRepository = shiftRepository;
     }
 
-    public void assignShift(VolunteerShift newShift){
-        if(newShift == null){
-            throw new IllegalArgumentException("shift cant be null");
+    public void assignShift(VolunteerShift newShift) {
+
+        if (newShift == null) {
+            throw new IllegalArgumentException("Shift cannot be null");
         }
-        List<VolunteerShift> existingShifts = shiftRepository.findByVolunteerId(newShift.getVolunteerId());
+
+        List<VolunteerShift> existingShifts =
+            shiftRepository.findByVolunteerId(newShift.getVolunteerId());
+
         for (VolunteerShift existing : existingShifts) {
 
             if (existing.getShiftDate().equals(newShift.getShiftDate())
-                    && newShift.getStartTime().isBefore(existing.getEndTime())
-                    && newShift.getEndTime().isAfter(existing.getStartTime())) {
+                && newShift.getStartTime().isBefore(existing.getEndTime())
+                && newShift.getEndTime().isAfter(existing.getStartTime())) {
 
                 throw new IllegalStateException("Overlapping volunteer shift");
             }
-            shiftRepository.save(newShift);
         }
-
+        shiftRepository.save(newShift);
     }
     public List<VolunteerShift> getVolunteerShifts(int volunteerId){
         if(volunteerId<=0){

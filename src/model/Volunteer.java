@@ -15,4 +15,14 @@ public class Volunteer extends User {
         }
         this.availability = availability;
     }
+    public void setAvailability(String availability) {
+
+        if (availability == null || availability.isBlank()) {
+            throw new IllegalArgumentException(
+                "Availability cannot be empty"
+            );
+        }
+
+        this.availability = availability.trim();
+    }
 }

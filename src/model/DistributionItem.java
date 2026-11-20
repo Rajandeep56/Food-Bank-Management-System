@@ -37,4 +37,13 @@ public class DistributionItem {
     public String getUnit() {
         return unit;
     }
+    public void setQuantity(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException(
+                "Quantity must be positive"
+            );
+        }
+
+        this.quantity = quantity;
+    }
 }

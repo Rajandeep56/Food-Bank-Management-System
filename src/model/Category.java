@@ -19,7 +19,7 @@ public class Category {
     public String getName() {
         return name;
     }
-    private void setName(String name) {
+    public void setName(String name) {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Category name cannot be null or empty");
         }

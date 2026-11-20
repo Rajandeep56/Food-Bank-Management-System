@@ -29,4 +29,24 @@ public class CategoryRepository {
     public List<Category> findAll() {
         return new ArrayList<>(categories.values());
     }
+     public void updateCategory(int categoryId, String name) {
+
+        Category category = findById(categoryId);
+
+            for (Category existing : categories.values()) {
+                if (existing.getCategoryId() != categoryId &&
+                    existing.getName().equalsIgnoreCase(name)) {
+
+                    throw new IllegalArgumentException(
+                        "Category name already exists"
+                    );
+                }
+            }
+
+            category.setName(name);
+        }
+    public void deleteCategory(int categoryId) {
+        findById(categoryId);
+        categories.remove(categoryId);
+    }
 }

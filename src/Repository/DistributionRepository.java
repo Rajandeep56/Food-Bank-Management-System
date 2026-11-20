@@ -36,4 +36,8 @@ public class DistributionRepository {
     public List<Distribution> findAll() {
         return new ArrayList<>(distributions.values());
     }
+    public void delete(int distributionId) {
+        findById(distributionId);
+        distributions.remove(distributionId);
+    }
 }
