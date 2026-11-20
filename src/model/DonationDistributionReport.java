@@ -79,6 +79,7 @@ public class DonationDistributionReport extends Report {
         totalPeopleServed = 0;
         aggregateDonations();
         aggregateDistributions();
+
         for (Distribution distribution : distributionRepository.findAll()) {
             LocalDate date = distribution.getDistributionDate();
 
@@ -87,7 +88,6 @@ public class DonationDistributionReport extends Report {
             }
 
             totalDistributions++;
-
             switch (distribution.getPickupStatus()) {
                 case FULFILLED:
                     fulfilledPickups++;
@@ -109,23 +109,6 @@ public class DonationDistributionReport extends Report {
                     break;
             }
         }
-
-        for (Donation donation : donationRepository.findAll()) {
-            LocalDate date = donation.getDonationDate().atZone(ZoneId.systemDefault()).toLocalDate();
-
-            if (date.isBefore(getStartDate()) ||
-                date.isAfter(getEndDate())) {
-                continue;
-            }
-
-            totalDonations++;
-            String key = donation.getCategoryId() + " - " + donation.getUnit();
-
-            donationCount.put(key, donationCount.getOrDefault(key, 0) + 1);
-
-            quantityDonated.put(key, quantityDonated.getOrDefault(key, 0L) + donation.getQuantity());
-        }
-
     }
 
     @Override

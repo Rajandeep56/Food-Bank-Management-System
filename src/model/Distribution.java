@@ -18,8 +18,8 @@ public class Distribution {
         if (distributionId <= 0 || requestId <= 0) {
             throw new IllegalArgumentException("Invalid input parameters for Distribution constructor");
         }
-        if (distributionDate == null || distributionDate.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("Distribution date cannot be null or in the future");
+        if (distributionDate == null) {
+            throw new IllegalArgumentException("Distribution date cannot be null");
         }
         this.distributionId = distributionId;
         this.requestId = requestId;

@@ -123,8 +123,10 @@ public class DistributionService {
             throw new IllegalStateException("distribution not found");
         }
 
-        if(distribution.getPickupStatus() != PickupStatus.SCHEDULED){
-            throw new IllegalArgumentException("pickup was not scheduled");
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED && distribution.getPickupStatus() != PickupStatus.DELAYED) {
+            throw new IllegalStateException(
+                "Only scheduled or delayed pickups can be marked missed"
+            );
         }
 
         distribution.markPickupStatus(PickupStatus.MISSED);
