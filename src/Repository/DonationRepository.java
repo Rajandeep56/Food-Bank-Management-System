@@ -31,4 +31,8 @@ public class DonationRepository{
         }
         return result;
     }
+
+    public List<Donation> findAll() {
+        return new ArrayList<>(donations.values());
+    }
 }

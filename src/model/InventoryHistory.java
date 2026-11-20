@@ -7,7 +7,10 @@ public class InventoryHistory {
     private final int quantityChange;
     private final InventoryChangeType changeType;
     private final Instant occurredAt;
-    public InventoryHistory(int inventoryId, int quantityChange, InventoryChangeType changeType) {
+    private final int categoryId;
+    private final String unit;
+
+    public InventoryHistory(int inventoryId, int quantityChange, InventoryChangeType changeType, int categoryId, String unit) {
         if (inventoryId <= 0) {
             throw new IllegalArgumentException("Inventory ID must be positive");
         }
@@ -16,11 +19,20 @@ public class InventoryHistory {
             throw new IllegalArgumentException("Change type cannot be null");
         }
 
+        if (unit == null || unit.isBlank()) {
+            throw new IllegalArgumentException(
+                "Unit cannot be empty"
+            );
+        }
+
         this.inventoryId = inventoryId;
         this.quantityChange = quantityChange;
         this.changeType = changeType;
+         this.categoryId = categoryId;
+        this.unit = unit;
         this.occurredAt = Instant.now();
     }
+
         public int getInventoryId() {
             return inventoryId;
         }
@@ -34,6 +46,12 @@ public class InventoryHistory {
         public Instant getOccurredAt() {
             return occurredAt;
         }
-       
+       public int getCategoryId() {
+            return categoryId;
+        }
+
+        public String getUnit() {
+            return unit;
+}
 
     }

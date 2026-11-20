@@ -23,7 +23,7 @@ public class InventoryService {
             throw new IllegalArgumentException("Inventory item cannot be null");
         }
         inventoryRepository.save(inventoryItem);
-        history.add(new InventoryHistory(inventoryItem.getInventoryId(), inventoryItem.getQuantity(), InventoryChangeType.DONATION_RECEIVED));
+        history.add(new InventoryHistory(inventoryItem.getInventoryId(), inventoryItem.getQuantity(), InventoryChangeType.DONATION_RECEIVED, inventoryItem.getCategoryId(), inventoryItem.getUnit()));
     }
 
     public void adjustStock(int inventoryId, int adjustment, InventoryChangeType changeType) {
@@ -35,7 +35,7 @@ public class InventoryService {
         }
         InventoryItem item = inventoryRepository.getInventoryItemById(inventoryId);
         item.adjustQuantity(adjustment);
-        history.add(new InventoryHistory(inventoryId, adjustment, changeType));
+        history.add(new InventoryHistory(inventoryId, adjustment, changeType, item.getCategoryId(), item.getUnit()));
     }
 
      public List<InventoryHistory> getHistory() {

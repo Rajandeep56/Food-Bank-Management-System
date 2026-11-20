@@ -1,6 +1,7 @@
 package model;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 import common.DonationStatus;
 
@@ -42,10 +43,26 @@ public class Donation {
     public int getRecordedBy() {
         return recordedBy;
     }
+    public Instant getDonationDate() {
+        return donationDate;
+    }
 
     public DonationStatus getStatus() {
         return status;
     }
+
+    public int getCategoryId() {
+        return categoryId;
+    }
+
+    public String getUnit() {
+        return unit;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
     public void setStatus(DonationStatus status) {
         DonationStatus currentStatus = getStatus();
 

@@ -33,4 +33,7 @@ public class DistributionRepository {
         }
         return result;
     }
+    public List<Distribution> findAll() {
+        return new ArrayList<>(distributions.values());
+    }
 }
