@@ -1,6 +1,7 @@
 package Services;
 import model.InventoryItem;
 import common.InventoryChangeType;
+import database.DatabaseWriter;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -11,6 +12,7 @@ import model.InventoryHistory;
 public class InventoryService {
     private final InventoryRepository inventoryRepository;
     private final List<InventoryHistory> history = new ArrayList<>();
+    private DatabaseWriter dbWriter = new DatabaseWriter();
     
     public InventoryService(InventoryRepository inventoryRepository) {
         if(inventoryRepository == null) {
@@ -35,8 +37,25 @@ public class InventoryService {
             throw new IllegalArgumentException("Change type cannot be null");
         }
         InventoryItem item = inventoryRepository.getInventoryItemById(inventoryId);
+        int newQuantity = item.getQuantity() + adjustment;
+
+        if (newQuantity < 0) {
+            throw new IllegalArgumentException("Insufficient inventory");
+        }
+
+        InventoryHistory record = new InventoryHistory(
+            inventoryId,
+            adjustment,
+            changeType,
+            item.getCategoryId(),
+            item.getUnit()
+        );
+
+        if (changeType != InventoryChangeType.DISTRIBUTED) {
+            dbWriter.changeInventory(inventoryId, newQuantity, record);
+        }
         item.adjustQuantity(adjustment);
-        history.add(new InventoryHistory(inventoryId, adjustment, changeType, item.getCategoryId(), item.getUnit()));
+        history.add(record);
     }
 
      public List<InventoryHistory> getHistory() {

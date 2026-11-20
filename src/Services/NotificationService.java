@@ -11,11 +11,13 @@ import Repository.NotificationRepository;
 import Repository.UserRepository;
 import common.NotificationType;
 import common.PickupStatus;
+import database.DatabaseWriter;
 import model.Distribution;
 import model.FoodHamperRequest;
 import model.InventoryItem;
 import model.Notification;
 import model.User;
+
 
 public class NotificationService {
     private final NotificationRepository notificationRepository;
@@ -24,6 +26,7 @@ public class NotificationService {
     private final FoodHamperRequestRepository hamperRequestRepository;
     private final CategoryRepository categoryRepository;
     private final ExpiryRiskDetector expiryRiskDetector;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
 
     // stops the same item being alerted twice
     private final Set<Integer> alertedInventoryIds = new HashSet<>();
@@ -94,8 +97,18 @@ public class NotificationService {
     private void send(NotificationType type, User to, String message) {
         Notification notification = new Notification(notificationRepository.nextId(), type,
                 to.getUserId(), to.getEmail(), message);
+        dbWriter.addNotification(
+            notification.getNotificationId(),
+            notification.getRecipientUserId(),
+            notification.getRecipientEmail(),
+            notification.getType().name(),
+            notification.getMessage()
+        );
         notificationRepository.save(notification);
         System.out.println("[EMAIL to " + to.getEmail() + "] " + type + ": " + message);
+        dbWriter.markNotificationSent(
+            notification.getNotificationId()
+        );
         notification.markSent();
     }
 

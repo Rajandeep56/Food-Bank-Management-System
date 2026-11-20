@@ -1,10 +1,13 @@
 package Repository;
 
 import java.util.*;
+
+import database.DatabaseWriter;
 import model.FoodHamperRequest;
 
 public class FoodHamperRequestRepository {
     private final HashMap<Integer, FoodHamperRequest> hamperRequests = new HashMap<>();
+    private DatabaseWriter dbWriter = new DatabaseWriter();
     
     public void save(FoodHamperRequest hamperRequest) {
         if (hamperRequest == null) {

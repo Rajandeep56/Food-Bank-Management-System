@@ -1,10 +1,12 @@
 import database.DatabaseLoader;
+import database.DatabaseWriter;
 import Repository.*;
 import Services.*;
 
 public class Main {
 
     public static void main(String[] args) {
+        DatabaseWriter.enabled = false;
 
         System.out.println("=== FOOD BANK SYSTEM ===");
 
@@ -61,5 +63,40 @@ public class Main {
 
         System.out.println("Notifications: " +
             notificationRepository.findAll().size());
+        
+        AuthService authService =
+            new AuthService(userRepository);
+
+        CoordinatorService coordinatorService =
+            new CoordinatorService(userRepository, categoryRepository);
+
+
+        FoodHamperRequestService hamperService =
+            new FoodHamperRequestService(
+                hamperRepository,
+                distributionRepository
+            );
+
+        DistributionService distributionService =
+            new DistributionService(
+                distributionRepository,
+                hamperRepository,
+                inventoryService,
+                inventoryRepository
+            );
+
+        VolunteerShiftService shiftService =
+            new VolunteerShiftService(shiftRepository);
+
+        DecliningStockDetector decliningStockDetector =
+            new DecliningStockDetector(
+                inventoryRepository, inventoryService
+            );
+
+        ExpiryRiskDetector expiryRiskDetector =
+            new ExpiryRiskDetector(
+                inventoryRepository, inventoryService
+            );
+
     }
 }

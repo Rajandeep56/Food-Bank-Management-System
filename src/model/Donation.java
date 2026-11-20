@@ -12,6 +12,7 @@ public class Donation {
     private String unit;
     private DonationStatus status;
     private Instant donationDate;
+    private String itemName;
     
     public Donation(int donationId, int donorId, int recordedBy, String itemName, int categoryId, int quantity, String unit) {
         if(donationId <= 0 || donorId <= 0 || recordedBy <= 0 || itemName == null || itemName.strip().isEmpty() || categoryId <= 0 || quantity <= 0 || unit == null || unit.strip().isEmpty()) {
@@ -21,6 +22,7 @@ public class Donation {
         this.donationId = donationId;
         this.donorId = donorId;
         this.recordedBy = recordedBy;
+        this.itemName = itemName;
         this.categoryId = categoryId;
         this.quantity = quantity;
         this.unit = unit;
@@ -99,5 +101,8 @@ public class Donation {
     public void restoreFromDatabase(Instant date, DonationStatus status) {
         this.donationDate = date;
         this.status = status;
+    }
+    public String getItemName() {
+        return itemName;
     }
 }

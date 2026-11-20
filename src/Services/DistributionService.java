@@ -14,6 +14,7 @@ import Repository.UserRepository;
 import common.HamperRequestStatus;
 import common.InventoryChangeType;
 import common.PickupStatus;
+import database.DatabaseWriter;
 import model.Distribution;
 import model.DistributionItem;
 import model.FoodHamperRequest;
@@ -25,6 +26,7 @@ public class DistributionService {
     private final FoodHamperRequestRepository hamperRequestRepository;
     private final InventoryService inventoryService;
     private final InventoryRepository inventoryRepository;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
     
     public DistributionService(DistributionRepository distributionRepository, FoodHamperRequestRepository hamperRequestRepository, InventoryService inventoryService, InventoryRepository inventoryRepository) {
        if (distributionRepository == null || hamperRequestRepository == null || inventoryService == null || inventoryRepository == null) {
@@ -100,6 +102,12 @@ public class DistributionService {
                 "Cannot fulfill a cancelled hamper request"
             );
         }
+        dbWriter.fulfillDistribution(
+            distributionId,
+            distribution.getRequestId(),
+            authService.getCurrentUserId(),
+            distribution.getItems()
+        );
         // adjust stock
         for(DistributionItem item: distribution.getItems()) {
             int inventoryId = item.getInventoryId();
@@ -111,6 +119,7 @@ public class DistributionService {
         request.markFulfilled();
         
     }
+
     public void markMissedPickup(int distributionId, AuthService authService){
         authService.requireRole("Volunteer");
         if(distributionId<=0){
@@ -128,7 +137,7 @@ public class DistributionService {
                 "Only scheduled or delayed pickups can be marked missed"
             );
         }
-
+        dbWriter.updatePickupStatus(distributionId, "MISSED");
         distribution.markPickupStatus(PickupStatus.MISSED);
 
     }
@@ -148,7 +157,7 @@ public class DistributionService {
         if(distribution.getPickupStatus() != PickupStatus.SCHEDULED){
             throw new IllegalArgumentException("pickup was not scheduled");
         }
-
+        dbWriter.updatePickupStatus(distributionId, "DELAYED");
         distribution.markPickupStatus(PickupStatus.DELAYED);
     }
 
@@ -214,7 +223,7 @@ public class DistributionService {
                 "Only scheduled distributions can be deleted"
             );
         }
-
+        dbWriter.deleteDistribution(distributionId);
         distributionRepository.delete(distributionId);
     }
 
@@ -241,6 +250,10 @@ public class DistributionService {
 
         for (DistributionItem item : distribution.getItems()) {
             if (item.getInventoryId() == inventoryId) {
+                dbWriter.updateDistributionItem(
+                    item.getDistributionItemId(),
+                    newQuantity
+                );
                 item.setQuantity(newQuantity);
                 return;
             }
@@ -248,12 +261,27 @@ public class DistributionService {
 
         throw new IllegalArgumentException("Distribution item not found");
     }
-    public void removeDistributionItem(int distributionId, int inventoryId, AuthService authService ) {
-            authService.requireRole("Volunteer");
-            Distribution distribution = distributionRepository.findById(distributionId);
+    public void removeDistributionItem(int distributionId, int inventoryId, AuthService authService) {
+        authService.requireRole("Volunteer");
+        Distribution distribution = distributionRepository.findById(distributionId);
 
-            distribution.removeItem(inventoryId);
-     }
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
+            throw new IllegalStateException(
+                "Only scheduled distributions can be modified"
+            );
+        }
+
+        for (DistributionItem item : distribution.getItems()) {
+            if (item.getInventoryId() == inventoryId) {
+                dbWriter.deleteDistributionItem(
+                    item.getDistributionItemId()
+                );
+                distribution.removeItem(inventoryId);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Distribution item not found");
+    }
     
     public List<Distribution> searchDistributionHistory(AuthService authService, LocalDate startDate,LocalDate endDate) {
         User recipient = authService.requireRole("Recipient");

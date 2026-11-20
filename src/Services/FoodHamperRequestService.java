@@ -6,6 +6,7 @@ import java.util.List;
 import Repository.DistributionRepository;
 import Repository.FoodHamperRequestRepository;
 import common.RecipientApprovalStatus;
+import database.DatabaseWriter;
 import model.Distribution;
 import model.FoodHamperRequest;
 import model.Recipient;
@@ -15,6 +16,7 @@ public class FoodHamperRequestService {
 
     private final FoodHamperRequestRepository requestRepository;
     private final DistributionRepository distributionRepository;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
 
     public FoodHamperRequestService(FoodHamperRequestRepository requestRepository, DistributionRepository distributionRepository) {
 
@@ -49,9 +51,14 @@ public class FoodHamperRequestService {
         }
         FoodHamperRequest request = new FoodHamperRequest(requestId, recipient.getUserId());
         request.schedulePickup(pickupDate);
-        requestRepository.save(request);
 
         Distribution distribution = new Distribution(requestId, requestId, pickupDate);
+        dbWriter.createHamperRequest(
+            requestId,
+            authService.getCurrentUserId(),
+            pickupDate
+        );
+        requestRepository.save(request);
         distributionRepository.save(distribution);
         return request;
     }
@@ -64,6 +71,7 @@ public class FoodHamperRequestService {
         if (request.getRecipientId() != recipient.getUserId()) {
             throw new SecurityException("Access denied");
         }
+        dbWriter.cancelHamperRequest(requestId);
         request.cancel();
     }
     

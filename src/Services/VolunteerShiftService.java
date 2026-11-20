@@ -14,12 +14,14 @@ import Repository.NotificationRepository;
 import Repository.VolunteerShiftRepository;
 import common.NotificationType;
 import database.DatabaseConnection;
+import database.DatabaseWriter;
 import model.User;
 import model.VolunteerShift;
 
 public class VolunteerShiftService {
 
     private final VolunteerShiftRepository shiftRepository;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
 
     public VolunteerShiftService(
             VolunteerShiftRepository shiftRepository) {
@@ -51,6 +53,15 @@ public class VolunteerShiftService {
                 throw new IllegalStateException("Overlapping volunteer shift");
             }
         }
+        dbWriter.addVolunteerShift(
+            newShift.getShiftId(),
+            newShift.getVolunteerId(),
+            newShift.getCoordinatorId(),
+            newShift.getShiftDate(),
+            newShift.getStartTime(),
+            newShift.getEndTime(),
+            newShift.getTask()
+        );
         shiftRepository.save(newShift);
     }
     public List<VolunteerShift> getVolunteerShifts(AuthService authService){

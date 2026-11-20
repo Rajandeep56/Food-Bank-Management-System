@@ -14,12 +14,14 @@ import Repository.DistributionRepository;
 import Repository.DonationRepository;
 import Repository.FoodHamperRequestRepository;
 import common.DonationStatus;
+import database.DatabaseWriter;
 
 public class DonationService {
     private final DonationRepository donationRepository; // donationrepository handles donation
     private final InventoryService inventoryService; // inventoryservice handles inventory stock updates and history for auditing.
     private final DistributionRepository distributionRepository;
     private final FoodHamperRequestRepository requestRepository;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
 
     public DonationService(DonationRepository donationRepository, InventoryService inventoryService, FoodHamperRequestRepository requestRepository, DistributionRepository distributionRepository) {
         if(donationRepository == null) {
@@ -51,7 +53,7 @@ public class DonationService {
         } else {
             throw new SecurityException("Access denied");
         }
-
+        dbWriter.addDonation(donation);
         donationRepository.save(donation);
     }
 
@@ -70,7 +72,10 @@ public class DonationService {
         if (donation.getDonorId() != donor.getUserId()) {
             throw new SecurityException("Access denied");
         }
+        Donation updated = new Donation( donation.getDonationId(), donation.getDonorId(), donation.getRecordedBy(), itemName, categoryId, quantity, unit);
+        updated.restoreFromDatabase(donation.getDonationDate(), donation.getStatus());
 
+        dbWriter.updateDonation(updated);
         donation.updateDonation(
             itemName, categoryId, quantity, unit
         );
@@ -104,6 +109,9 @@ public class DonationService {
         }
 
         try {
+            dbWriter.updateDonation(donation);
+
+            dbWriter.completeDonation(donationId, inventoryItem.getInventoryId(), donation.getItemName(), donation.getCategoryId(), donation.getQuantity(), donation.getUnit(), inventoryItem.getExpiryDate());
             inventoryService.addInventoryItem(inventoryItem);
             donation.setStatus(DonationStatus.COMPLETED);
         } catch (RuntimeException ex) {

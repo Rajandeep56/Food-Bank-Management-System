@@ -1,6 +1,7 @@
 package Services;
 
 import Repository.UserRepository;
+import database.DatabaseWriter;
 import model.Donor;
 import model.Recipient;
 import model.User;
@@ -9,6 +10,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private User currentUser;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
 
     public AuthService(UserRepository userRepository) {
         this.userRepository = userRepository;
@@ -64,6 +66,11 @@ public class AuthService {
     public void updateProfile(String name, String phone) {
 
         User user = getCurrentUser();
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Name cannot be empty");
+        }
+
+        dbWriter.updateUser(user.getUserId(), name, phone);
 
         user.updateProfile(name, user.getEmail(), phone);
     }
@@ -75,7 +82,7 @@ public class AuthService {
         String newPassword
     ) {
         User user = getCurrentUser();
-
+        dbWriter.changePassword(user.getUserId(), newPassword);
         user.changePassword(oldPassword, newPassword);
     }
 

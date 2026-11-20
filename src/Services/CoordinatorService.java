@@ -6,6 +6,7 @@ import Repository.CategoryRepository;
 import Repository.InventoryRepository;
 import Repository.UserRepository;
 import common.RecipientApprovalStatus;
+import database.DatabaseWriter;
 import model.Category;
 import model.InventoryHistory;
 import model.InventoryItem;
@@ -18,6 +19,7 @@ import model.Volunteer;
 public class CoordinatorService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
+    private DatabaseWriter dbWriter = new DatabaseWriter();
 
     public CoordinatorService(UserRepository userRepository, CategoryRepository categoryRepository) {
         if (userRepository == null || categoryRepository == null) {
@@ -60,6 +62,9 @@ public class CoordinatorService {
         if (recipient.getApprovalStatus() != RecipientApprovalStatus.PENDING) {
             throw new IllegalStateException("Only pending registrations can be approved or rejected");
         }
+        String status = decision == RecipientApprovalStatus.APPROVED ? "Approved" : "Rejected";
+
+        dbWriter.updateRecipientStatus( recipientId,  status, authService.getCurrentUserId());
         recipient.updateApprovalStatus(decision);
     }
 
@@ -70,6 +75,7 @@ public class CoordinatorService {
                                             String passwordHash, String phone, String availability) {
         requireCoordinator(authService);
         Volunteer volunteer = new Volunteer(volunteerId, name, email, passwordHash, phone, availability);
+        dbWriter.registerVolunteer(volunteerId, name, email, passwordHash, phone, availability, authService.getCurrentUserId());
         userRepository.save(volunteer);
         return volunteer;
     }
@@ -82,6 +88,9 @@ public class CoordinatorService {
         if (coordinatorId == userId) {
             throw new IllegalArgumentException("Coordinators cannot delete their own account");
         }
+        userRepository.findById(userId);
+
+        dbWriter.deactivateUser(userId);
         userRepository.delete(userId);
     }
 
@@ -98,6 +107,7 @@ public class CoordinatorService {
             }
         }
         Category category = new Category(categoryId, name.trim());
+        dbWriter.addCategory(categoryId, name);
         categoryRepository.save(category);
         return category;
     }
