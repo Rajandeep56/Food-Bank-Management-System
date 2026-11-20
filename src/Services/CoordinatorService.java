@@ -131,7 +131,7 @@ public class CoordinatorService {
                 "Category name cannot be empty"
             );
         }
-
+        dbWriter.updateCategory(categoryId, name);
         categoryRepository.updateCategory(
             categoryId, name.trim()
         );

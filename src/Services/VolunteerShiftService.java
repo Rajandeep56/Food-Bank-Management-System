@@ -8,13 +8,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
 
-import javax.management.Notification;
 
 import Repository.NotificationRepository;
 import Repository.VolunteerShiftRepository;
 import common.NotificationType;
 import database.DatabaseConnection;
 import database.DatabaseWriter;
+import model.Notification;
 import model.User;
 import model.VolunteerShift;
 
@@ -56,11 +56,11 @@ public class VolunteerShiftService {
         dbWriter.addVolunteerShift(
             newShift.getShiftId(),
             newShift.getVolunteerId(),
-            newShift.getCoordinatorId(),
+            newShift.getAssignedBy(),
             newShift.getShiftDate(),
             newShift.getStartTime(),
             newShift.getEndTime(),
-            newShift.getTask()
+            newShift.getAssignedTask()
         );
         shiftRepository.save(newShift);
     }

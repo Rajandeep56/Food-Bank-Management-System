@@ -25,7 +25,6 @@ import model.Donation;
 import model.FoodHamperRequest;
 import model.InventoryHistory;
 import model.InventoryItem;
-import model.Notification;
 import model.VolunteerShift;
 import Repository.NotificationRepository;
 

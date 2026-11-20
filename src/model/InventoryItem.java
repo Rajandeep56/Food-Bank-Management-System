@@ -16,8 +16,18 @@ public class InventoryItem {
     private  final int donationId;
 
     public InventoryItem(int inventoryId, String itemName, int categoryId, int quantity, String unit, LocalDate expiryDate, int donationId) {
-        if (inventoryId <= 0 || itemName == null || itemName.strip().isEmpty() || categoryId <= 0 || quantity <= 0 || unit == null || unit.strip().isEmpty() || donationId <= 0) {
-            throw new IllegalArgumentException("Invalid inventory item parameters");
+        if (inventoryId < 0
+                || itemName == null
+                || itemName.strip().isEmpty()
+                || categoryId <= 0
+                || quantity < 0
+                || unit == null
+                || unit.strip().isEmpty()
+                || donationId < 0) {
+
+            throw new IllegalArgumentException(
+                "Invalid inventory item parameters"
+            );
         }
         this.inventoryId = inventoryId;
         this.itemName = itemName;

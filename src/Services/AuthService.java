@@ -44,7 +44,14 @@ public class AuthService {
                 "Only donors and recipients can register"
             );
         }
-
+        dbWriter.addUser(
+            user.getUserId(),
+            user.getName(),
+            user.getEmail(),
+            user.getPhone(),
+            user.getPasswordHash(),
+            "Donor"
+        );
         userRepository.save(user);
     }
     public void logout() {

@@ -57,6 +57,7 @@ public abstract class User {
     public String getRole() {
         return role;
     }
+    
     public Instant getCreatedAt() {
         return createdAt;
     }
