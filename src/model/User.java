@@ -67,5 +67,26 @@ public abstract class User {
     public void deactivate() {
         this.active = false;
     }
+    public boolean verifyPassword(String password) {
+        return passwordHash.equals(password);
+    }
+    public void changePassword(
+    String oldPassword,
+    String newPassword
+    ) {
+        if (!verifyPassword(oldPassword)) {
+            throw new IllegalArgumentException(
+                "Incorrect old password"
+            );
+        }
+
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new IllegalArgumentException(
+                "New password cannot be empty"
+            );
+        }
+
+        this.passwordHash = newPassword;
+    }
 
 }

@@ -4,6 +4,7 @@ import model.Distribution;
 import model.Donation;
 import model.FoodHamperRequest;
 import model.InventoryItem;
+import model.User;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -95,10 +96,13 @@ public class DonationService {
 
 
     public List<Distribution> searchDistributionHistory(
-    int recipientId,
-    LocalDate startDate,
-    LocalDate endDate
+        AuthService authService,
+        LocalDate startDate,
+        LocalDate endDate
     ) {
+         User recipient = authService.requireRole("Recipient");
+
+        int recipientId = recipient.getUserId();
         List<Distribution> result = new ArrayList<>();
 
         if (startDate != null && endDate != null &&
@@ -129,5 +133,26 @@ public class DonationService {
         }
 
         return result;
+    }
+
+    public List<Donation> searchDonationHistory(
+        AuthService authService,
+        LocalDate startDate,
+        LocalDate endDate,
+        Integer categoryId
+    ) {
+        User donor = authService.requireRole("Donor");
+
+        if (startDate != null && endDate != null &&
+            startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Invalid date range");
+        }
+
+        return donationRepository.searchDonations(
+            donor.getUserId(),
+            startDate,
+            endDate,
+            categoryId
+        );
     }
 }

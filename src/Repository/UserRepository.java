@@ -51,4 +51,16 @@ public class UserRepository {
         User user = findById(userId);
         user.deactivate();
     }
+
+    public User findByEmail(String email) {
+
+        for (User user : users.values()) {
+
+            if (user.getEmail().equalsIgnoreCase(email)) {
+                return user;
+            }
+        }
+
+        throw new IllegalArgumentException("User not found");
+    }
 }

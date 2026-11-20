@@ -34,7 +34,12 @@ public class FoodHamperRequestService {
         }
     }
 
-    public FoodHamperRequest requestHamper(int requestId, Recipient recipient, LocalDate pickupDate){
+        public FoodHamperRequest requestHamper(
+        int requestId,
+        AuthService authService,
+        LocalDate pickupDate
+    ){
+        Recipient recipient = (Recipient) authService.requireRole("Recipient");
         validateRecipient(recipient);
         if(requestId<=0){
             throw new IllegalArgumentException("recipient id is 0");
@@ -48,7 +53,8 @@ public class FoodHamperRequestService {
         return request;
     }
 
-    public void cancelRequest(int requestId){
+    public void cancelRequest(int requestId, ){
+        
         if(requestId<=0  ){
             throw new IllegalArgumentException("requestid is  0");
         }
