@@ -30,7 +30,9 @@ public class CoordinatorService {
 
     // ---------- recipient approval ----------
 
-    public List<Recipient> getPendingRecipients() {
+    public List<Recipient> getPendingRecipients(AuthService authService) {
+            requireCoordinator(authService);
+
         List<Recipient> pending = new ArrayList<>();
         for (User user : userRepository.findByRole("Recipient")) {
             Recipient recipient = (Recipient) user;
@@ -41,16 +43,16 @@ public class CoordinatorService {
         return pending;
     }
 
-    public void approveRecipient(int coordinatorId, int recipientId) {
-        reviewRecipient(coordinatorId, recipientId, RecipientApprovalStatus.APPROVED);
+    public void approveRecipient(AuthService authService, int recipientId) {
+        reviewRecipient(authService, recipientId, RecipientApprovalStatus.APPROVED);
     }
 
-    public void rejectRecipient(int coordinatorId, int recipientId) {
-        reviewRecipient(coordinatorId, recipientId, RecipientApprovalStatus.REJECTED);
+    public void rejectRecipient(AuthService authService, int recipientId) {
+        reviewRecipient(authService, recipientId, RecipientApprovalStatus.REJECTED);
     }
 
-    private void reviewRecipient(int coordinatorId, int recipientId, RecipientApprovalStatus decision) {
-        requireCoordinator(coordinatorId);
+    private void reviewRecipient(AuthService authService, int recipientId, RecipientApprovalStatus decision) {
+        requireCoordinator(authService);
         User user = userRepository.findById(recipientId);
         if (!(user instanceof Recipient)) {
             throw new IllegalArgumentException("User " + recipientId + " is not a recipient");
@@ -65,9 +67,9 @@ public class CoordinatorService {
     // ---------- volunteer accounts ----------
 
     // volunteers cannot sign up themselves, a coordinator creates their account
-    public Volunteer createVolunteerAccount(int coordinatorId, int volunteerId, String name, String email,
+    public Volunteer createVolunteerAccount(AuthService authService, int volunteerId, String name, String email,
                                             String passwordHash, String phone, String availability) {
-        requireCoordinator(coordinatorId);
+        requireCoordinator(authService);
         Volunteer volunteer = new Volunteer(volunteerId, name, email, passwordHash, phone, availability);
         userRepository.save(volunteer);
         return volunteer;
@@ -75,8 +77,9 @@ public class CoordinatorService {
 
     // ---------- delete accounts (only coordinators) ----------
 
-    public void deleteUser(int coordinatorId, int userId) {
-        requireCoordinator(coordinatorId);
+    public void deleteUser(AuthService authService, int userId) {
+        requireCoordinator(authService);
+            int coordinatorId = authService.getCurrentUserId();
         if (coordinatorId == userId) {
             throw new IllegalArgumentException("Coordinators cannot delete their own account");
         }
@@ -85,8 +88,8 @@ public class CoordinatorService {
 
     // ---------- inventory categories ----------
 
-    public Category addCategory(int coordinatorId, int categoryId, String name) {
-        requireCoordinator(coordinatorId);
+    public Category addCategory(AuthService authService, int categoryId, String name) {
+        requireCoordinator(authService);
         for (Category existing : categoryRepository.findAll()) {
             if (existing.getName().equalsIgnoreCase(name.trim())) {
                 throw new IllegalArgumentException("Category " + name + " already exists");
@@ -103,17 +106,13 @@ public class CoordinatorService {
 
     // ---------- helper ----------
 
+
     private void requireCoordinator(AuthService authService) {
         authService.requireRole("Coordinator");
-        int coordinatorId = authService.getCurrentUserId();
-        User user = userRepository.findById(userId);
-        if (!(user instanceof Coordinator)) {
-            throw new IllegalStateException("Only coordinators can do this");
-        }
     }
 
-    public void renameCategory( int coordinatorId, int categoryId, String name) {
-        requireCoordinator(coordinatorId);
+    public void renameCategory( AuthService authService, int categoryId, String name) {
+        requireCoordinator(authService);
 
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException(
@@ -126,8 +125,8 @@ public class CoordinatorService {
         );
     }
 
-    public void deleteCategory(int coordinatorId, int categoryId, InventoryRepository inventoryRepository,InventoryService inventoryService) {
-        requireCoordinator(coordinatorId);
+    public void deleteCategory(AuthService authService, int categoryId, InventoryRepository inventoryRepository,InventoryService inventoryService) {
+        requireCoordinator(authService);
 
         for (InventoryItem item :
                 inventoryRepository.getAllInventoryItems()) {
@@ -153,12 +152,12 @@ public class CoordinatorService {
     }
 
     public void updateUser(
-        int coordinatorId,
+        AuthService authService,
         int userId,
         String name,
         String phone
     ) {
-        requireCoordinator(coordinatorId);
+       requireCoordinator(authService);
 
         User user = userRepository.findById(userId);
 
@@ -166,11 +165,12 @@ public class CoordinatorService {
     }
 
     public void updateVolunteerAvailability(
-        int coordinatorId,
+        AuthService authService,
         int volunteerId,
         String availability
     ) {
-        requireCoordinator(coordinatorId);
+       requireCoordinator(authService);
+
 
         User user = userRepository.findById(volunteerId);
 

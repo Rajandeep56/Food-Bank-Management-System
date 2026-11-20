@@ -35,19 +35,44 @@ public class DonationService {
     }
 
     //validates and save a new donation
-    public void createDonation(Donation donation) {
+    public void createDonation(Donation donation, AuthService authService) {
+        User user = authService.getCurrentUser();
         if(donation == null) {
             throw new IllegalArgumentException("Donation cannot be null");
+        }
+        if (user.getRole().equalsIgnoreCase("Volunteer") && donation.getRecordedBy() != user.getUserId()) {
+            throw new SecurityException("Invalid recording volunteer");
+        } else if (!user.getRole().equalsIgnoreCase("Volunteer")) {
+            throw new SecurityException("Access denied");
         }
         donationRepository.save(donation);
     }
 
+    public void updateDonation(int donationId, String itemName, int categoryId, int quantity, String unit, AuthService authService) {
+        User donor = authService.requireRole("Donor");
+
+        List<Donation> donationList =
+            donationRepository.getDonationById(donationId);
+
+        if (donationList.isEmpty()) {
+            throw new IllegalArgumentException("Donation not found");
+        }
+
+        Donation donation = donationList.get(0);
+
+        if (donation.getDonorId() != donor.getUserId()) {
+            throw new SecurityException("Access denied");
+        }
+
+        donation.updateDonation(
+            itemName, categoryId, quantity, unit
+        );
+    }
+
     // create inventory and mark the donation comepleted
     
-    public void completeDonation(
-            int donationId,
-            InventoryItem inventoryItem) {
-
+    public void completeDonation(int donationId, InventoryItem inventoryItem, AuthService authService) {
+        authService.requireRole("Volunteer");
         List<Donation> donationList = donationRepository.getDonationById(donationId);
 
         if (donationList.isEmpty()) {

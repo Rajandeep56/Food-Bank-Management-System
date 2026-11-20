@@ -22,8 +22,8 @@ public class VolunteerShiftService {
         this.shiftRepository = shiftRepository;
     }
 
-    public void assignShift(VolunteerShift newShift) {
-
+    public void assignShift(VolunteerShift newShift, AuthService authService) {
+        authService.requireRole("Coordinator");
         if (newShift == null) {
             throw new IllegalArgumentException("Shift cannot be null");
         }

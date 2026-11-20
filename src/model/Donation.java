@@ -80,4 +80,24 @@ public class Donation {
             throw new IllegalArgumentException("Invalid status transition from " + currentStatus + " to " + status);
         }
     }
+
+    public void updateDonation(String itemName, int categoryId, int quantity, String unit) {
+        if (status != DonationStatus.CREATED) {
+            throw new IllegalStateException(
+                "Only newly created donations can be modified"
+            );
+        }
+
+        if (itemName == null || itemName.isBlank()
+            || categoryId <= 0 || quantity <= 0
+            || unit == null || unit.isBlank()) {
+
+            throw new IllegalArgumentException("Invalid donation details");
+        }
+
+        this.itemName = itemName.trim();
+        this.categoryId = categoryId;
+        this.quantity = quantity;
+        this.unit = unit.trim();
+    }
 }

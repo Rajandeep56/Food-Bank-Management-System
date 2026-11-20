@@ -20,27 +20,12 @@ public class ReportService {
         this.userRepository = userRepository;
     }
 
-    private Coordinator requireCoordinator(int coordinatorId) {
-
-        if (coordinatorId <= 0) {
-            throw new IllegalArgumentException(
-                "Coordinator ID must be positive"
-            );
-        }
-
-        User user = userRepository.findById(coordinatorId);
-
-        if (!(user instanceof Coordinator)) {
-            throw new SecurityException(
-                "Only coordinators can generate reports"
-            );
-        }
-
-        return (Coordinator) user;
+    private User requireCoordinator(AuthService authService) {
+        return authService.requireRole("Coordinator");
     }
 
-    public Report generateReport(int coordinatorId, Report report, ReportPeriodType periodType,int year,int month) {
-        Coordinator coordinator = requireCoordinator(coordinatorId);
+    public Report generateReport(AuthService authService, Report report, ReportPeriodType periodType,int year,int month) {
+        User coordinator = requireCoordinator(authService);
         if (report == null) {
             throw new IllegalArgumentException("Report cannot be null");
         }
@@ -52,9 +37,9 @@ public class ReportService {
         return report;
     }
 
-    public void displayReport(int coordinatorId, Report report) {
+    public void displayReport(AuthService authService, Report report) {
         
-        requireCoordinator(coordinatorId);
+         requireCoordinator(authService);
 
         if (report == null) {
             throw new IllegalArgumentException(

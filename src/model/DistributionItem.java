@@ -3,7 +3,7 @@ package model;
 public class DistributionItem {
     private final int distributionItemId;
     private final int inventoryId;
-    private final int quantity;
+    private int quantity;
     private final String unit;
 
     public DistributionItem(int distributionItemId, int inventoryId, int quantity, String unit) {
