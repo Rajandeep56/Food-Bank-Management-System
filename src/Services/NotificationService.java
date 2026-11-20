@@ -99,12 +99,7 @@ public class NotificationService {
         notification.markSent();
     }
 
-    public void checkStockDecline(
-    int categoryId,
-    String unit,
-    LocalDate today,
-    DecliningStockDetector detector
-        ) {
+    public void checkStockDecline( int categoryId,  String unit,  LocalDate today,  DecliningStockDetector detector   ) {
             String key = categoryId + " - " + unit;
 
             LocalDate lastAlert = lastStockAlert.get(key);
@@ -116,12 +111,15 @@ public class NotificationService {
 
             if (detector.isDeclining(categoryId, unit, today)) {
 
-                System.out.println(
-                    "Inventory At-Risk: Stock declining for " + key
-                );
+                String message = "Inventory At-Risk: Stock declining for " + key;
+
+                for (User coordinator : userRepository.findByRole("Coordinator")) {
+
+                    send(NotificationType.INVENTORY_AT_RISK, coordinator, message );
 
                 lastStockAlert.put(key, today);
             }
+         }
     }
 
     public void checkMissedPickups(LocalDate today) {

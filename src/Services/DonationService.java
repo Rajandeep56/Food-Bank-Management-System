@@ -40,11 +40,18 @@ public class DonationService {
         if(donation == null) {
             throw new IllegalArgumentException("Donation cannot be null");
         }
-        if (user.getRole().equalsIgnoreCase("Volunteer") && donation.getRecordedBy() != user.getUserId()) {
-            throw new SecurityException("Invalid recording volunteer");
-        } else if (!user.getRole().equalsIgnoreCase("Volunteer")) {
+        if (user.getRole().equalsIgnoreCase("Donor")) {
+            if (donation.getDonorId() != user.getUserId()) {
+                throw new SecurityException("Access denied");
+            }
+        } else if (user.getRole().equalsIgnoreCase("Volunteer")) {
+            if (donation.getRecordedBy() != user.getUserId()) {
+                throw new SecurityException("Invalid recording volunteer");
+            }
+        } else {
             throw new SecurityException("Access denied");
         }
+
         donationRepository.save(donation);
     }
 

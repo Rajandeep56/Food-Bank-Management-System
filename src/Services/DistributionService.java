@@ -111,7 +111,8 @@ public class DistributionService {
         request.markFulfilled();
         
     }
-    public void markMissedPickup(int distributionId){
+    public void markMissedPickup(int distributionId, AuthService authService){
+        authService.requireRole("Volunteer");
         if(distributionId<=0){
             throw new IllegalArgumentException("distribution id = 0");
         }
@@ -130,7 +131,8 @@ public class DistributionService {
 
     }
 
-    public void markDelayedPickup(int distributionId){
+    public void markDelayedPickup(int distributionId,AuthService authService){
+        authService.requireRole("Volunteer");
         if(distributionId<=0){
             throw new IllegalArgumentException("distribution id = 0");
         }
@@ -162,13 +164,7 @@ public class DistributionService {
         distribution.setPickupTime(pickupTime);
     }
 
-    public List<Distribution> searchDistributions(
-    String recipientName,
-    LocalDate startDate,
-    LocalDate endDate,
-    UserRepository userRepository,
-    AuthService authService
-    ) {
+    public List<Distribution> searchDistributions(String recipientName, LocalDate startDate, LocalDate endDate, UserRepository userRepository, AuthService authService  ) {
         authService.requireRole("Volunteer");
         List<Distribution> result = new ArrayList<>();
 
@@ -206,10 +202,10 @@ public class DistributionService {
 
         return result;
     }
-    public void deleteDistribution(int distributionId) {
 
-        Distribution distribution =
-            distributionRepository.findById(distributionId);
+    public void deleteDistribution(int distributionId, AuthService authService) {
+        authService.requireRole("Volunteer");
+        Distribution distribution = distributionRepository.findById(distributionId);
 
         if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
             throw new IllegalStateException(
@@ -219,13 +215,10 @@ public class DistributionService {
 
         distributionRepository.delete(distributionId);
     }
-    public void updateDistributionItem(
-    int distributionId,
-    int inventoryId,
-    int newQuantity
-    ) {
-        Distribution distribution =
-            distributionRepository.findById(distributionId);
+
+    public void updateDistributionItem( int distributionId, int inventoryId,  int newQuantity, AuthService authService  ) {
+        authService.requireRole("Volunteer");
+        Distribution distribution = distributionRepository.findById(distributionId);
 
         if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
             throw new IllegalStateException(
@@ -253,15 +246,38 @@ public class DistributionService {
 
         throw new IllegalArgumentException("Distribution item not found");
     }
-    public void removeDistributionItem(
-    int distributionId,
-    int inventoryId,
-    AuthService authService
-        ) {
+    public void removeDistributionItem(int distributionId, int inventoryId, AuthService authService ) {
             authService.requireRole("Volunteer");
-            Distribution distribution =
-                distributionRepository.findById(distributionId);
+            Distribution distribution = distributionRepository.findById(distributionId);
 
             distribution.removeItem(inventoryId);
+     }
+    
+    public List<Distribution> searchDistributionHistory(AuthService authService, LocalDate startDate,LocalDate endDate) {
+        User recipient = authService.requireRole("Recipient");
+        List<Distribution> result = new ArrayList<>();
+
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("Invalid date range");
         }
+
+        for (Distribution distribution : distributionRepository.findAll()) {
+            FoodHamperRequest request = hamperRequestRepository.findById( distribution.getRequestId()  );
+
+            if (request.getRecipientId() != recipient.getUserId()) {
+                continue;
+            }
+            LocalDate date = distribution.getDistributionDate();
+
+            if (startDate != null && date.isBefore(startDate)) {
+                continue;
+            }
+            if (endDate != null && date.isAfter(endDate)) {
+                continue;
+            }
+            result.add(distribution);
+        }
+
+        return result;
+    }
 }

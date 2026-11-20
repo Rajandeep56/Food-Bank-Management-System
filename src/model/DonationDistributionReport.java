@@ -59,9 +59,9 @@ public class DonationDistributionReport extends Report {
     @Override
     public void generate() {
         if (getStartDate() == null || getEndDate() == null) {
-        throw new IllegalStateException(
-            "Report period must be specified first"
-        );
+            throw new IllegalStateException(
+                "Report period must be specified first"
+            );
         }
         totalDonations = 0;
         totalDistributions = 0;
@@ -77,19 +77,16 @@ public class DonationDistributionReport extends Report {
         Arrays.fill(monthlyDonations, 0);
         Arrays.fill(monthlyDistributions, 0);
         totalPeopleServed = 0;
+        aggregateDonations();
         aggregateDistributions();
-
         for (Distribution distribution : distributionRepository.findAll()) {
-
             LocalDate date = distribution.getDistributionDate();
 
-            if (date.isBefore(getStartDate()) ||
-                date.isAfter(getEndDate())) {
+            if (date.isBefore(getStartDate()) || date.isAfter(getEndDate())) {
                 continue;
             }
 
             totalDistributions++;
-            monthlyDonations[date.getMonthValue() - 1]++;
 
             switch (distribution.getPickupStatus()) {
                 case FULFILLED:
@@ -112,9 +109,8 @@ public class DonationDistributionReport extends Report {
                     break;
             }
         }
+
         for (Donation donation : donationRepository.findAll()) {
-
-
             LocalDate date = donation.getDonationDate().atZone(ZoneId.systemDefault()).toLocalDate();
 
             if (date.isBefore(getStartDate()) ||
@@ -134,6 +130,10 @@ public class DonationDistributionReport extends Report {
 
     @Override
     public void display() {
+        if (totalDonations == 0 && totalDistributions == 0) {
+            System.out.println("No records found for the selected period.");
+            return;
+        }
         displayHeader("Donation and Distribution Summary");
         System.out.println("Period: " + getStartDate() + " to " + getEndDate());
         System.out.println("Total Donations: " + totalDonations);
@@ -154,29 +154,59 @@ public class DonationDistributionReport extends Report {
 
     private void aggregateDistributions() {
 
-    for (InventoryHistory history : inventoryService.getHistory()) {
+        for (InventoryHistory history : inventoryService.getHistory()) {
 
-        if (history.getChangeType() != InventoryChangeType.DISTRIBUTED) {
-            continue;
-        }
-
-        LocalDate date = history.getOccurredAt()
-            .atZone(ZoneId.systemDefault())
-            .toLocalDate();
-
-        if (date.isBefore(getStartDate()) ||
-            date.isAfter(getEndDate())) {
-            continue;
-        }
-
-        String key = history.getCategoryId()
-            + " - " + history.getUnit();
-
-        quantityDistributed.put(key,
-            quantityDistributed.getOrDefault(key, 0L)
-            + Math.abs((long) history.getQuantityChange()));
+            if (history.getChangeType() != InventoryChangeType.DISTRIBUTED) {
+                continue;
             }
+
+            LocalDate date = history.getOccurredAt()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+
+            if (date.isBefore(getStartDate()) ||
+                date.isAfter(getEndDate())) {
+                continue;
+            }
+
+            String key = history.getCategoryId()
+                + " - " + history.getUnit();
+
+            quantityDistributed.put(key,
+                quantityDistributed.getOrDefault(key, 0L)
+                + Math.abs((long) history.getQuantityChange()));
+                }
     }
+
+    private void aggregateDonations() {
+
+        for (Donation donation : donationRepository.findAll()) {
+
+            LocalDate date = donation.getDonationDate()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDate();
+
+            if (date.isBefore(getStartDate()) ||
+                date.isAfter(getEndDate())) {
+                continue;
+            }
+
+            String key = donation.getCategoryId()
+                + " - " + donation.getUnit();
+
+            totalDonations++;
+
+            monthlyDonations[date.getMonthValue() - 1]++;
+
+            donationCount.put(key,
+                donationCount.getOrDefault(key, 0) + 1);
+
+            quantityDonated.put(key,
+                quantityDonated.getOrDefault(key, 0L)
+                + donation.getQuantity());
+        }
+    }
+
     private void displayCategorySummary() {
 
         Set<String> keys = new TreeSet<>();

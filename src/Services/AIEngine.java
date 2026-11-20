@@ -81,4 +81,8 @@ public class AIEngine {
             }
         }, delay, TimeUnit.MILLISECONDS);
     }
+
+    public void stopScheduler() {
+        scheduler.shutdownNow();
+    }
 }

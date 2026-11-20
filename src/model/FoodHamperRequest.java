@@ -8,6 +8,7 @@ public class FoodHamperRequest {
     private final int requestId;
     private final int recipientId;
     private final LocalDate requestDate;
+    private LocalDate pickupDate;
     private HamperRequestStatus status;
 
     public FoodHamperRequest(int requestId, int recipientId) {
@@ -26,6 +27,9 @@ public class FoodHamperRequest {
     public int getRecipientId() {
         return recipientId;
     }
+    public LocalDate getPickupDate() {
+        return pickupDate;
+    }
     public HamperRequestStatus getStatus() {
         return status;
     }
@@ -37,12 +41,14 @@ public class FoodHamperRequest {
         if (status != HamperRequestStatus.PENDING) {
             throw new IllegalStateException("Pickup can only be scheduled for pending requests");
         }
+         this.pickupDate = pickupDate;
         this.status = HamperRequestStatus.SCHEDULED;
     }
     public void cancel() {
         if (status == HamperRequestStatus.FULFILLED) {
             throw new IllegalStateException("Cannot cancel a fulfilled request");
         }
+        
         this.status = HamperRequestStatus.CANCELLED;
     }
 

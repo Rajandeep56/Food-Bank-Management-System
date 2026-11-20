@@ -57,10 +57,8 @@ public class InventoryService {
         }
     }
 
-    public List<InventoryItem> searchInventory(
-    String itemName,
-    Integer categoryId
-    ) {
+    public List<InventoryItem> searchInventory(String itemName, Integer categoryId,  AuthService authService) {
+        authService.requireRole("Volunteer");
         List<InventoryItem> result = new ArrayList<>();
 
         for (InventoryItem item :
@@ -83,28 +81,15 @@ public class InventoryService {
         return result;
     }
 
-    public void discardInventory(int inventoryId) {
+    public void discardInventory(int inventoryId, AuthService authService) {
+        authService.requireRole("Volunteer");
+        InventoryItem item = inventoryRepository.getInventoryItemById(inventoryId);
 
-        InventoryItem item =
-            inventoryRepository.getInventoryItemById(inventoryId);
-
-        int quantity = item.getQuantity();
-
-        if (quantity <= 0) {
-            throw new IllegalStateException(
-                "No remaining inventory to discard"
-            );
-        }
-
-        adjustStock(
-            inventoryId,
-            -quantity,
-            InventoryChangeType.WASTED
-        );
+        discardQuantity(inventoryId, item.getQuantity(), authService);
     }
 
-    public void discardQuantity(int inventoryId, int quantity) {
-
+    public void discardQuantity(int inventoryId, int quantity, AuthService authService) {
+        authService.requireRole("Volunteer");
         if (quantity <= 0) {
             throw new IllegalArgumentException(
                 "Quantity must be positive"

@@ -89,6 +89,9 @@ public class CoordinatorService {
 
     public Category addCategory(AuthService authService, int categoryId, String name) {
         requireCoordinator(authService);
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Category name cannot be empty");
+        }
         for (Category existing : categoryRepository.findAll()) {
             if (existing.getName().equalsIgnoreCase(name.trim())) {
                 throw new IllegalArgumentException("Category " + name + " already exists");

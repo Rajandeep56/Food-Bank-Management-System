@@ -3,8 +3,10 @@ package Services;
 import java.time.LocalDate;
 import java.util.List;
 
+import Repository.DistributionRepository;
 import Repository.FoodHamperRequestRepository;
 import common.RecipientApprovalStatus;
+import model.Distribution;
 import model.FoodHamperRequest;
 import model.Recipient;
 import model.User;
@@ -12,16 +14,18 @@ import model.User;
 public class FoodHamperRequestService {
 
     private final FoodHamperRequestRepository requestRepository;
+    private final DistributionRepository distributionRepository;
 
-    public FoodHamperRequestService(FoodHamperRequestRepository requestRepository) {
+    public FoodHamperRequestService(FoodHamperRequestRepository requestRepository, DistributionRepository distributionRepository) {
 
-        if (requestRepository == null) {
+        if (requestRepository == null || distributionRepository == null) {
             throw new IllegalArgumentException(
                 "Repository cannot be null"
             );
         }
 
         this.requestRepository = requestRepository;
+        this.distributionRepository = distributionRepository;
     }
 
     private void validateRecipient(Recipient recipient){
@@ -34,11 +38,7 @@ public class FoodHamperRequestService {
         }
     }
 
-        public FoodHamperRequest requestHamper(
-        int requestId,
-        AuthService authService,
-        LocalDate pickupDate
-    ){
+    public FoodHamperRequest requestHamper(int requestId,  AuthService authService, LocalDate pickupDate){
         Recipient recipient = (Recipient) authService.requireRole("Recipient");
         validateRecipient(recipient);
         if(requestId<=0){
@@ -50,6 +50,9 @@ public class FoodHamperRequestService {
         FoodHamperRequest request = new FoodHamperRequest(requestId, recipient.getUserId());
         request.schedulePickup(pickupDate);
         requestRepository.save(request);
+
+        Distribution distribution = new Distribution(requestId, requestId, pickupDate);
+        distributionRepository.save(distribution);
         return request;
     }
 
@@ -61,10 +64,7 @@ public class FoodHamperRequestService {
         if (request.getRecipientId() != recipient.getUserId()) {
             throw new SecurityException("Access denied");
         }
-
         request.cancel();
-        
-
     }
     
     public List<FoodHamperRequest> getRecipientRequests(AuthService authService){
