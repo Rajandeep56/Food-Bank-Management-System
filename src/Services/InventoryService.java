@@ -118,8 +118,8 @@ public class InventoryService {
         );
     }
 
-    public void updateInventoryQuantity(int inventoryId, int newQuantity) {
-
+    public void updateInventoryQuantity(int inventoryId, int newQuantity, AuthService authService) {
+        authService.requireRole("Volunteer");
         if (newQuantity < 0) {
             throw new IllegalArgumentException(
                 "Quantity cannot be negative"
@@ -141,4 +141,5 @@ public class InventoryService {
             InventoryChangeType.MANUAL_ADJUSTMENT
         );
     }
+    
 }

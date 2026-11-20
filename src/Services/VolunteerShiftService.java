@@ -3,6 +3,7 @@ package Services;
 import java.util.*;
 
 import Repository.VolunteerShiftRepository;
+import model.User;
 import model.VolunteerShift;
 
 public class VolunteerShiftService {
@@ -41,13 +42,12 @@ public class VolunteerShiftService {
         }
         shiftRepository.save(newShift);
     }
-    public List<VolunteerShift> getVolunteerShifts(int volunteerId){
-        if(volunteerId<=0){
-            throw new IllegalArgumentException("volunteer id should be > 0");
+    public List<VolunteerShift> getVolunteerShifts(AuthService authService){
+        User volunteer = authService.requireRole("Volunteer");
 
-        }
-        List<VolunteerShift> existingShifts = shiftRepository.findByVolunteerId(volunteerId);
-        return existingShifts;
+        return shiftRepository.findByVolunteerId(
+            volunteer.getUserId()
+        );
 
     }
 }

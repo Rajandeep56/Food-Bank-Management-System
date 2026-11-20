@@ -81,7 +81,8 @@ public class DistributionService {
         }
     }
 
-    public void fulfillDistribution(int distributionId){
+    public void fulfillDistribution(int distributionId, AuthService authService){
+        authService.requireRole("Volunteer");
         // Validation eligibility
         validateDistribution(distributionId);
 
@@ -165,8 +166,10 @@ public class DistributionService {
     String recipientName,
     LocalDate startDate,
     LocalDate endDate,
-    UserRepository userRepository
+    UserRepository userRepository,
+    AuthService authService
     ) {
+        authService.requireRole("Volunteer");
         List<Distribution> result = new ArrayList<>();
 
         if (startDate != null && endDate != null &&
@@ -252,8 +255,10 @@ public class DistributionService {
     }
     public void removeDistributionItem(
     int distributionId,
-    int inventoryId
+    int inventoryId,
+    AuthService authService
         ) {
+            authService.requireRole("Volunteer");
             Distribution distribution =
                 distributionRepository.findById(distributionId);
 

@@ -103,7 +103,9 @@ public class CoordinatorService {
 
     // ---------- helper ----------
 
-    private void requireCoordinator(int userId) {
+    private void requireCoordinator(AuthService authService) {
+        authService.requireRole("Coordinator");
+        int coordinatorId = authService.getCurrentUserId();
         User user = userRepository.findById(userId);
         if (!(user instanceof Coordinator)) {
             throw new IllegalStateException("Only coordinators can do this");

@@ -8,6 +8,7 @@ import Repository.FoodHamperRequestRepository;
 import common.RecipientApprovalStatus;
 import model.FoodHamperRequest;
 import model.Recipient;
+import model.User;
 
 public class FoodHamperRequestService {
 
@@ -53,26 +54,25 @@ public class FoodHamperRequestService {
         return request;
     }
 
-    public void cancelRequest(int requestId, ){
-        
-        if(requestId<=0  ){
-            throw new IllegalArgumentException("requestid is  0");
-        }
-        FoodHamperRequest request = requestRepository.findById(requestId);
+    public void cancelRequest(int requestId,     AuthService authService){
+        User recipient = authService.requireRole("Recipient");
+        FoodHamperRequest request =
+        requestRepository.findById(requestId);
 
-        if( request == null ){
-            throw new IllegalArgumentException("request is null");
+        if (request.getRecipientId() != recipient.getUserId()) {
+            throw new SecurityException("Access denied");
         }
 
         request.cancel();
         
 
     }
-    public List<FoodHamperRequest> getRecipientRequests(int recipientId){
-        if(recipientId<=0){
-            throw new IllegalArgumentException("recipientid = 0");
-        }
-        List<FoodHamperRequest> result = requestRepository.findByRecipientId(recipientId);
-        return result;
+    
+    public List<FoodHamperRequest> getRecipientRequests(AuthService authService){
+        User recipient = authService.requireRole("Recipient");
+
+        return requestRepository.findByRecipientId(
+            recipient.getUserId()
+        );
     }
 }
