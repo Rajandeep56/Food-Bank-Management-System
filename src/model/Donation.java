@@ -10,9 +10,9 @@ public class Donation {
     private int categoryId;
     private int quantity;
     private String unit;
-    private final Instant donationDate;
     private DonationStatus status;
-
+    private Instant donationDate;
+    
     public Donation(int donationId, int donorId, int recordedBy, String itemName, int categoryId, int quantity, String unit) {
         if(donationId <= 0 || donorId <= 0 || recordedBy <= 0 || itemName == null || itemName.strip().isEmpty() || categoryId <= 0 || quantity <= 0 || unit == null || unit.strip().isEmpty()) {
             throw new IllegalArgumentException("Invalid input parameters for Donation constructor");
@@ -95,5 +95,9 @@ public class Donation {
         this.categoryId = categoryId;
         this.quantity = quantity;
         this.unit = unit.trim();
+    }
+    public void restoreFromDatabase(Instant date, DonationStatus status) {
+        this.donationDate = date;
+        this.status = status;
     }
 }

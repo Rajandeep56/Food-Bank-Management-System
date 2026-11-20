@@ -126,5 +126,8 @@ public class InventoryService {
             InventoryChangeType.MANUAL_ADJUSTMENT
         );
     }
+    public void loadHistory(InventoryHistory record) {
+        history.add(record);
+    }
     
 }

@@ -2,11 +2,80 @@ package Repository;
 
 import java.util.*;
 
+import common.RecipientApprovalStatus;
+import model.Coordinator;
+import model.Donor;
+import model.Recipient;
 import model.User;
+import model.Volunteer;
+import database.DatabaseConnection;
+import java.sql.*;
 
 
 public class UserRepository {
     private final Map<Integer, User> users = new HashMap<>();
+    private static final String USER_QUERY =
+        """
+        SELECT u.*,
+            r.household_size,
+            r.dietary_restrictions,
+            r.emergency_contact,
+            r.approval_status,
+            v.availability
+        FROM users u
+        LEFT JOIN recipients r
+            ON u.user_id = r.recipient_id
+        LEFT JOIN volunteers v
+            ON u.user_id = v.volunteer_id
+        """;
+    
+    public User mapUser(ResultSet rs) throws SQLException {
+
+        int id = rs.getInt("user_id");
+        String name = rs.getString("name");
+        String email = rs.getString("email");
+        String password = rs.getString("password_hash");
+        String phone = rs.getString("phone");
+        String role = rs.getString("role");
+
+        User user;
+        String approvalStatus = rs.getString("approval_status");
+        switch (role) {
+            case "Donor":
+                user = new Donor(id, name, email, password, phone);
+                break;
+            case "Volunteer":
+                user = new Volunteer(
+                    id, name, email, password, phone,
+                    rs.getString("availability")
+                );
+                break;
+            case "Recipient":
+                user = new Recipient(
+                    id, name, email, password, phone,
+                    rs.getInt("household_size"),
+                    rs.getString("dietary_restrictions"),
+                    rs.getString("emergency_contact")
+                );
+                break;
+            case "Coordinator":
+                user = new Coordinator(
+                    id, name, email, password, phone
+                );
+                break;
+
+            default:
+                throw new SQLException("Invalid user role");
+        }
+        if (!rs.getBoolean("is_active")) {
+            user.deactivate();
+        }
+        if (user instanceof Recipient) {
+            ((Recipient) user).updateApprovalStatus(RecipientApprovalStatus.valueOf(rs.getString("approval_status").toUpperCase() ) );
+        }
+
+        return user;
+    }
 
     public void save(User user) {
         if (user == null) {

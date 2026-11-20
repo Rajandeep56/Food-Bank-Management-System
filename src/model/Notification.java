@@ -11,7 +11,7 @@ public class Notification {
     private final int recipientUserId;
     private final String recipientEmail;
     private final String message;
-    private final Instant createdAt;
+    private  Instant createdAt;
     private boolean sent;
 
     public Notification(int notificationId, NotificationType type, int recipientUserId, String recipientEmail, String message) {
@@ -53,5 +53,10 @@ public class Notification {
     }
     public void markSent() {
         this.sent = true;
+    }
+
+    public void restoreFromDatabase(Instant createdAt, boolean sent) {
+        this.createdAt = createdAt;
+        this.sent = sent;
     }
 }

@@ -6,7 +6,7 @@ public class InventoryHistory {
     private final int inventoryId;
     private final int quantityChange;
     private final InventoryChangeType changeType;
-    private final Instant occurredAt;
+    private  Instant occurredAt;
     private final int categoryId;
     private final String unit;
 
@@ -52,6 +52,9 @@ public class InventoryHistory {
 
         public String getUnit() {
             return unit;
-}
+        }
+        public void restoreFromDatabase(Instant occurredAt) {
+            this.occurredAt = occurredAt;
+        }
 
     }
