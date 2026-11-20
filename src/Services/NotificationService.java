@@ -1,6 +1,7 @@
 package Services;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 import Repository.CategoryRepository;
@@ -26,11 +27,14 @@ public class NotificationService {
 
     // stops the same item being alerted twice
     private final Set<Integer> alertedInventoryIds = new HashSet<>();
+    private final DecliningStockDetector decliningStockDetector;
+
+    private final Map<String, LocalDate> lastStockAlert = new HashMap<>();
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
                                DistributionRepository distributionRepository,
                                FoodHamperRequestRepository hamperRequestRepository,
-                               CategoryRepository categoryRepository, ExpiryRiskDetector expiryRiskDetector) {
+                               CategoryRepository categoryRepository, ExpiryRiskDetector expiryRiskDetector, DecliningStockDetector decliningStockDetector) {
         if (notificationRepository == null || userRepository == null || distributionRepository == null
                 || hamperRequestRepository == null || categoryRepository == null || expiryRiskDetector == null) {
             throw new IllegalArgumentException("Dependencies cannot be null");
@@ -41,6 +45,7 @@ public class NotificationService {
         this.hamperRequestRepository = hamperRequestRepository;
         this.categoryRepository = categoryRepository;
         this.expiryRiskDetector = expiryRiskDetector;
+        this.decliningStockDetector = decliningStockDetector;
     }
 
     // missed or delayed pickup -> alert every coordinator
@@ -95,5 +100,70 @@ public class NotificationService {
         notificationRepository.save(notification);
         System.out.println("[EMAIL to " + to.getEmail() + "] " + type + ": " + message);
         notification.markSent();
+    }
+
+    public void checkStockDecline(
+    int categoryId,
+    String unit,
+    LocalDate today,
+    DecliningStockDetector detector
+        ) {
+            String key = categoryId + " - " + unit;
+
+            LocalDate lastAlert = lastStockAlert.get(key);
+
+            if (lastAlert != null &&
+                today.isBefore(lastAlert.plusDays(7))) {
+                return;
+            }
+
+            if (detector.isDeclining(categoryId, unit, today)) {
+
+                System.out.println(
+                    "Inventory At-Risk: Stock declining for " + key
+                );
+
+                lastStockAlert.put(key, today);
+            }
+    }
+
+    public void checkMissedPickups(LocalDate today) {
+
+        for (Distribution distribution : distributionRepository.findAll()) {
+
+            if (distribution.getDistributionDate().isBefore(today)) {
+
+                if (distribution.getPickupStatus() == PickupStatus.SCHEDULED || distribution.getPickupStatus() == PickupStatus.DELAYED) {
+
+                    markPickupStatus(distribution.getDistributionId(),PickupStatus.MISSED);
+                }
+            }
+        }
+    }
+
+    public void checkDelayedPickups(LocalDateTime now) {
+
+        for (Distribution distribution :
+                distributionRepository.findAll()) {
+
+            if (distribution.getPickupStatus() != PickupStatus.SCHEDULED ||
+                distribution.getPickupTime() == null ||
+                !distribution.getDistributionDate().equals(now.toLocalDate())) {
+                continue;
+            }
+
+            LocalDateTime deadline = LocalDateTime.of(
+                distribution.getDistributionDate(),
+                distribution.getPickupTime()
+            ).plusHours(2);
+
+            if (now.isAfter(deadline)) {
+
+                markPickupStatus(
+                    distribution.getDistributionId(),
+                    PickupStatus.DELAYED
+                );
+            }
+        }
     }
 }
