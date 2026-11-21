@@ -93,7 +93,7 @@ public class Donation {
             throw new IllegalArgumentException("Invalid donation details");
         }
 
-        itemName.trim();
+        this.itemName = itemName.trim();
         this.categoryId = categoryId;
         this.quantity = quantity;
         this.unit = unit.trim();

@@ -1,18 +1,32 @@
 package model;
 
 import java.time.*;
-// abstract class to rpevent direct instantiation of User, as we will have different types of users
 public abstract class User {
     private final int userId;
     private String name;
     private String email;
-    private String passwordHash;
+    private String password;
     private String phone;
     private final String role;
     private final Instant createdAt;
     private boolean active = true;
+    private int failedLogins;
+    private Instant lockedUntil;
+    public int getFailedLogins() {
+        return failedLogins;
+    }
 
-    protected User(int userId, String name, String email, String passwordHash, String phone, String role) {
+    public Instant getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public void restoreLoginState(int attempts, Instant until) {
+        failedLogins = attempts;
+        lockedUntil = until;
+    }
+
+
+    protected User(int userId, String name, String email, String password, String phone, String role) {
         if (userId <= 0) {
             throw new IllegalArgumentException("User ID must be positive");
         }
@@ -25,10 +39,10 @@ public abstract class User {
 
         updateProfile(name, email, phone);
 
-        if(passwordHash == null || passwordHash.trim().isEmpty()) {
-            throw new IllegalArgumentException("Password hash cannot be null or empty");
+        if(password == null || password.trim().isEmpty()) {
+            throw new IllegalArgumentException("Password cannot be null or empty");
         }
-        this.passwordHash = passwordHash;
+        this.password = password;
 
     }
 
@@ -57,8 +71,12 @@ public abstract class User {
     public String getRole() {
         return role;
     }
+    public String getPassword() {
+        return password;
+    }
+    @Deprecated
     public String getPasswordHash() {
-        return passwordHash;
+        return getPassword();
     }
     public Instant getCreatedAt() {
         return createdAt;
@@ -71,25 +89,23 @@ public abstract class User {
         this.active = false;
     }
     public boolean verifyPassword(String password) {
-        return passwordHash.equals(password);
+        return this.password.equals(password);
     }
-    public void changePassword(
-    String oldPassword,
-    String newPassword
-    ) {
+    public void setPassword(String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalArgumentException("Password cannot be empty");
+        }
+        this.password = password;
+    }
+
+    public void changePassword(String oldPassword, String newPassword) {
         if (!verifyPassword(oldPassword)) {
             throw new IllegalArgumentException(
                 "Incorrect old password"
             );
         }
 
-        if (newPassword == null || newPassword.isBlank()) {
-            throw new IllegalArgumentException(
-                "New password cannot be empty"
-            );
-        }
-
-        this.passwordHash = newPassword;
+        setPassword(newPassword);
     }
 
 }

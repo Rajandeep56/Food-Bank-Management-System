@@ -2,8 +2,8 @@ package model;
 
 public class Volunteer extends User {
     private String availability;
-    public Volunteer(int userId, String name, String email, String passwordHash, String phone, String availability) {
-        super(userId, name, email, passwordHash, phone, "Volunteer");
+    public Volunteer(int userId, String name, String email, String password, String phone, String availability) {
+        super(userId, name, email, password, phone, "Volunteer");
         this.availability = availability;
     }
     public String getAvailability() {

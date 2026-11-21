@@ -7,16 +7,19 @@ import java.time.*;
 
 public class InventoryItem {
     private final int inventoryId;
-    private final String itemName;
+    private String itemName;
     private int categoryId;
     private int quantity;
     private final String unit;
     private LocalDate expiryDate;
-    private final Instant receivedDate;
+    private Instant receivedDate;
+    private int quantityReceived;
+    private String status = "Available";
+    private LocalDate wasteDate;
     private  final int donationId;
 
     public InventoryItem(int inventoryId, String itemName, int categoryId, int quantity, String unit, LocalDate expiryDate, int donationId) {
-        if (inventoryId < 0
+        if (inventoryId <= 0
                 || itemName == null
                 || itemName.strip().isEmpty()
                 || categoryId <= 0
@@ -33,12 +36,46 @@ public class InventoryItem {
         this.itemName = itemName;
         this.categoryId = categoryId;
         this.quantity = quantity;
+        this.quantityReceived = quantity;
         this.unit = unit;
         this.expiryDate =  expiryDate;
         this.receivedDate = Instant.now();
         this.donationId = donationId;
     }
 
+    public void updateDetails(String name, LocalDate expiry) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Item name required");
+        }
+        itemName = name.trim();
+        expiryDate = expiry;
+    }
+    public int getQuantityReceived() {
+        return quantityReceived;
+    }
+    public String getStatus() {
+        return status;
+    }
+    public LocalDate getWasteDate() {
+        return wasteDate;
+    }
+    public boolean isAvailable() {
+        return status.equals("Available");
+    }
+    public void markWaste(LocalDate day) {
+        if (isExpired(day)) {
+            status = "Expired";
+        } else {
+            status = "Discarded";
+        }
+        wasteDate = day;
+    }
+    public void restoreFromDatabase(Instant received, int receivedQuantity, String status, LocalDate wasteDate) {
+        this.receivedDate = received;
+        this.quantityReceived = receivedQuantity;
+        this.status = status;
+        this.wasteDate = wasteDate;
+    }
     public int getInventoryId() {
         return inventoryId;
     }
@@ -64,7 +101,7 @@ public class InventoryItem {
         return donationId;
     }
     public void adjustQuantity(int adjustment) {
-        if (quantity + adjustment < 0) {
+        if (Math.addExact(quantity, adjustment) < 0) {
             throw new IllegalArgumentException("Quantity cannot be negative, current available quantity: " + getQuantity() + ", attempted adjustment: " + adjustment);
         } 
         this.quantity += adjustment;

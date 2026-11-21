@@ -13,6 +13,16 @@ public class Distribution {
     private final List<DistributionItem> items = new ArrayList<>();
     private PickupStatus pickupStatus;
     private LocalTime pickupTime;
+    private Integer volunteerId;
+    public Integer getVolunteerId() {
+        return volunteerId;
+    }
+    public void setVolunteerId(Integer id) {
+        if (id != null && id <= 0) {
+            throw new IllegalArgumentException("Volunteer ID must be positive");
+        }
+        volunteerId = id;
+    }
     
     public Distribution(int distributionId, int requestId, LocalDate distributionDate) {
         if (distributionId <= 0 || requestId <= 0) {

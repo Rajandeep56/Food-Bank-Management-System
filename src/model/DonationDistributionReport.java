@@ -42,7 +42,8 @@ public class DonationDistributionReport extends Report {
 
     public DonationDistributionReport(DonationRepository donationRepository, DistributionRepository distributionRepository, InventoryService inventoryService, FoodHamperRequestRepository requestRepository,UserRepository userRepository, CategoryRepository categoryRepository ){
     
-        if (donationRepository == null || distributionRepository == null) {
+        if (donationRepository == null || distributionRepository == null || inventoryService == null
+                || requestRepository == null || userRepository == null || categoryRepository == null) {
         throw new IllegalArgumentException(
             "Repositories cannot be null"
             );
@@ -136,29 +137,34 @@ public class DonationDistributionReport extends Report {
     }
 
     private void aggregateDistributions() {
-
-        for (InventoryHistory history : inventoryService.getHistory()) {
-
-            if (history.getChangeType() != InventoryChangeType.DISTRIBUTED) {
-                continue;
+        // The reporting date is the fulfilled distribution date, not the time history was loaded or written.
+        for (Distribution distribution : distributionRepository.findAll()) {
+            LocalDate date = distribution.getDistributionDate();
+            if (distribution.getPickupStatus() != common.PickupStatus.FULFILLED
+                    || date.isBefore(getStartDate()) || date.isAfter(getEndDate())) continue;
+            for (DistributionItem item : distribution.getItems()) {
+                InventoryItem inventory = inventoryService.getInventoryItem(item.getInventoryId());
+                String key = inventory.getCategoryId() + " - " + item.getUnit();
+                quantityDistributed.put(key, quantityDistributed.getOrDefault(key, 0L) + item.getQuantity());
             }
+        }
+    }
 
-            LocalDate date = history.getOccurredAt()
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate();
-
-            if (date.isBefore(getStartDate()) ||
-                date.isAfter(getEndDate())) {
-                continue;
-            }
-
-            String key = history.getCategoryId()
-                + " - " + history.getUnit();
-
-            quantityDistributed.put(key,
-                quantityDistributed.getOrDefault(key, 0L)
-                + Math.abs((long) history.getQuantityChange()));
-                }
+    public record Totals(int donations, int fulfilled, int missed, int delayed, int households, int people) {}
+    public Totals getTotals() {
+        return new Totals(totalDonations, fulfilledPickups, missedPickups, delayedPickups, householdsServed.size(), totalPeopleServed);
+    }
+    public Map<String, Long> getQuantityDonated() {
+        return Map.copyOf(quantityDonated);
+    }
+    public Map<String, Long> getQuantityDistributed() {
+        return Map.copyOf(quantityDistributed);
+    }
+    public int[] getMonthlyDonations() {
+        return monthlyDonations.clone();
+    }
+    public int[] getMonthlyDistributions() {
+        return monthlyDistributions.clone();
     }
 
     private void aggregateDonations() {
@@ -196,6 +202,19 @@ public class DonationDistributionReport extends Report {
 
         keys.addAll(donationCount.keySet());
         keys.addAll(quantityDistributed.keySet());
+        for (Category category : categoryRepository.findAll()) {
+            String prefix = category.getCategoryId() + " - ";
+            boolean found = false;
+            for (String key : keys) {
+                if (key.startsWith(prefix)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                keys.add(prefix + "–");
+            }
+        }
 
         System.out.printf("%-20s %-15s %-15s %-15s%n",
             "Category - Unit",
@@ -228,19 +247,54 @@ public class DonationDistributionReport extends Report {
             totalPeopleServed += recipient.getHouseholdSize();
         }
     }
+    public record MonthlySummary(int month, int donations, Map<String, Long> received, Map<String, Long> distributed,
+            int fulfilled, int households, int people, int missed, int delayed) {}
+
+    public List<MonthlySummary> getYearlyBreakdown() {
+        List<MonthlySummary> months = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            int donations = 0, fulfilled = 0, missed = 0, delayed = 0, people = 0;
+            Map<String, Long> received = new TreeMap<>(), distributed = new TreeMap<>();
+            Set<Integer> households = new HashSet<>();
+            for (Donation donation : donationRepository.findAll()) {
+                LocalDate date = donation.getDonationDate().atZone(ZoneId.systemDefault()).toLocalDate();
+                if (date.getMonthValue() == month && !date.isBefore(getStartDate()) && !date.isAfter(getEndDate())) {
+                    donations++;
+                    String key = donation.getCategoryId() + " - " + donation.getUnit();
+                    received.put(key, received.getOrDefault(key, 0L) + donation.getQuantity());
+                }
+            }
+            for (Distribution distribution : distributionRepository.findAll()) {
+                LocalDate date = distribution.getDistributionDate();
+                if (date.getMonthValue() != month || date.isBefore(getStartDate()) || date.isAfter(getEndDate())) continue;
+                switch (distribution.getPickupStatus()) {
+                    case FULFILLED:
+                        fulfilled++;
+                        int id = getRecipientId(distribution);
+                        if (households.add(id)) people += ((Recipient) userRepository.findById(id)).getHouseholdSize();
+                        for (DistributionItem item : distribution.getItems()) {
+                            String key = inventoryService.getInventoryItem(item.getInventoryId()).getCategoryId() + " - " + item.getUnit();
+                            distributed.put(key, distributed.getOrDefault(key, 0L) + item.getQuantity());
+                        }
+                        break;
+                    case MISSED: missed++; break;
+                    case DELAYED: delayed++; break;
+                    default: break;
+                }
+            }
+            months.add(new MonthlySummary(month, donations, Map.copyOf(received), Map.copyOf(distributed), fulfilled, households.size(), people, missed, delayed));
+        }
+        return List.copyOf(months);
+    }
+
     private void displayMonthlyBreakdown() {
-
-        System.out.println("\nMonthly Breakdown");
-
-        System.out.printf("%-15s %-15s %-15s%n",
-            "Month", "Donations", "Distributions");
-
-        for (int i = 0; i < 12; i++) {
-
-            System.out.printf("%-15s %-15d %-15d%n",
-                java.time.Month.of(i + 1),
-                monthlyDonations[i],
-                monthlyDistributions[i]);
+        System.out.println("Monthly Breakdown: donation count, fulfilled hampers, households, people, missed, delayed");
+        for (MonthlySummary month : getYearlyBreakdown()) {
+            System.out.printf("%s | %d | %d | %d | %d | %d | %d%n", java.time.Month.of(month.month()),
+                month.donations(), month.fulfilled(), month.households(), month.people(), month.missed(), month.delayed());
+            Set<String> keys = new TreeSet<>(month.received().keySet()); keys.addAll(month.distributed().keySet());
+            for (String key : keys) System.out.println("  " + getCategoryLabel(key) + " | Received: "
+                + month.received().getOrDefault(key, 0L) + " | Distributed: " + month.distributed().getOrDefault(key, 0L));
         }
     }
 

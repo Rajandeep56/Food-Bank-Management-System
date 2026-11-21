@@ -13,6 +13,17 @@ public class Notification {
     private final String message;
     private  Instant createdAt;
     private boolean sent;
+    private String reason;
+
+    public String getReason() {
+        return reason;
+    }
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+    public boolean isExpiryAlert() {
+        return reason != null && (reason.contains(":Expiry:") || reason.equals("ExpiryRisk") || reason.equals("Expiry"));
+    }
 
     public Notification(int notificationId, NotificationType type, int recipientUserId, String recipientEmail, String message) {
         if (notificationId <= 0 || type == null || recipientUserId <= 0) {

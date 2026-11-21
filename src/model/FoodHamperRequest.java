@@ -7,7 +7,7 @@ import common.HamperRequestStatus;
 public class FoodHamperRequest {
     private final int requestId;
     private final int recipientId;
-    private final LocalDate requestDate;
+    private LocalDate requestDate;
     private LocalDate pickupDate;
     private HamperRequestStatus status;
 
@@ -20,6 +20,14 @@ public class FoodHamperRequest {
         this.recipientId = recipientId;
         this.requestDate = LocalDate.now();
         this.status = HamperRequestStatus.PENDING;
+    }
+    public LocalDate getRequestDate() {
+        return requestDate;
+    }
+    public void restoreFromDatabase(LocalDate requestDate, LocalDate pickupDate, HamperRequestStatus status) {
+        this.requestDate = java.util.Objects.requireNonNull(requestDate);
+        this.pickupDate = pickupDate;
+        this.status = java.util.Objects.requireNonNull(status);
     }
     public int getRequestId() {
         return requestId;
