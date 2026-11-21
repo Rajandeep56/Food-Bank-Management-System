@@ -17,6 +17,11 @@ public class EmailService {
             throw new IllegalStateException("API key missing");
         }
 
+        if (to == null || to.isBlank()) {
+            throw new IllegalArgumentException("Recipient email is missing");
+        }
+
+
         String body = """
             {
                 "from": "Food Bank <onboarding@resend.dev>",
@@ -41,6 +46,7 @@ public class EmailService {
             response.statusCode() >= 300) {
             throw new Exception(
                 "Email failed: " + response.statusCode()
+    + " - " + response.body()
             );
         }
     }
