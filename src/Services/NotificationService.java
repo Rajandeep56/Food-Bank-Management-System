@@ -9,6 +9,7 @@ import Repository.DistributionRepository;
 import Repository.FoodHamperRequestRepository;
 import Repository.NotificationRepository;
 import Repository.UserRepository;
+import Repository.VolunteerShiftRepository;
 import common.NotificationType;
 import common.PickupStatus;
 import database.DatabaseWriter;
@@ -17,6 +18,7 @@ import model.FoodHamperRequest;
 import model.InventoryItem;
 import model.Notification;
 import model.User;
+import model.VolunteerShift;
 
 
 public class NotificationService {
@@ -26,6 +28,7 @@ public class NotificationService {
     private final FoodHamperRequestRepository hamperRequestRepository;
     private final CategoryRepository categoryRepository;
     private final ExpiryRiskDetector expiryRiskDetector;
+    private VolunteerShiftRepository shiftRepository;
     private DatabaseWriter dbWriter = new DatabaseWriter();
 
     // stops the same item being alerted twice
@@ -51,6 +54,15 @@ public class NotificationService {
     // missed or delayed pickup -> alert every coordinator
     public void markPickupStatus(int distributionId, PickupStatus newStatus) {
         Distribution distribution = distributionRepository.findById(distributionId);
+        if (distribution == null) {
+            throw new IllegalArgumentException(
+                "Distribution not found"
+            );
+        }
+        if (distribution.getPickupStatus() == newStatus) {
+            return;
+        }
+        dbWriter.updatePickupStatus(distributionId, newStatus.name());
         distribution.markPickupStatus(newStatus);
 
         if (newStatus == PickupStatus.MISSED || newStatus == PickupStatus.DELAYED) {
@@ -67,6 +79,10 @@ public class NotificationService {
         }
     }
 
+    public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
+        this.shiftRepository = shiftRepository;
+    }
+
     // daily check: items the AI flags go to coordinators and volunteers
     public List<InventoryItem> checkInventoryAtRisk(LocalDate today) {
         List<InventoryItem> atRisk = expiryRiskDetector.findAtRiskItems(today);
@@ -81,9 +97,17 @@ public class NotificationService {
             for (User coordinator : userRepository.findByRole("Coordinator")) {
                 send(NotificationType.INVENTORY_AT_RISK, coordinator, message);
             }
-            for (User volunteer : userRepository.findByRole("Volunteer")) {
-                send(NotificationType.INVENTORY_AT_RISK, volunteer, message);
+            
+            for (VolunteerShift shift : shiftRepository.findAll()) {
+                if (shift.getShiftDate().equals(today)) {
+                    User volunteer = userRepository.findById(shift.getVolunteerId());
+
+                    if (volunteer != null) {
+                        send(NotificationType.INVENTORY_AT_RISK, volunteer, message);
+                    }
+                }
             }
+
             alertedInventoryIds.add(item.getInventoryId());
         }
         return atRisk;
