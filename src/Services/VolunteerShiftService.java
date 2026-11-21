@@ -1,145 +1,133 @@
 package Services;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.*;
-
+import java.util.List;
+import java.util.Locale;
 
 import Repository.NotificationRepository;
-import Repository.VolunteerShiftRepository;
-import common.NotificationType;
-import database.DatabaseConnection;
-import database.DatabaseWriter;
-import model.Notification;
-import model.User;
-import model.VolunteerShift;
 import Repository.UserRepository;
+import Repository.VolunteerShiftRepository;
+import database.DatabaseLoader;
+import database.DatabaseWriter;
+import model.User;
+import model.Volunteer;
+import model.VolunteerShift;
 
 public class VolunteerShiftService {
-
     private VolunteerShiftRepository shiftRepository;
-    private DatabaseWriter dbWriter = new DatabaseWriter();
     private UserRepository userRepository;
+    private final DatabaseWriter dbWriter = new DatabaseWriter();
 
-    public VolunteerShiftService(
-            VolunteerShiftRepository shiftRepository) {
-
-        if (shiftRepository == null) {
-            throw new IllegalArgumentException(
-                "Repository cannot be null"
-            );
-        }
-
-        this.shiftRepository = shiftRepository;
+    public VolunteerShiftService(VolunteerShiftRepository shiftRepository) {
+        setShiftRepository(shiftRepository);
     }
 
     public void setUserRepository(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
 
-    public void assignShift(VolunteerShift newShift, AuthService authService) {
-        authService.requireRole("Coordinator");
-        if (newShift == null) {
+    public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
+        if (shiftRepository == null) {
+            throw new IllegalArgumentException("Shift repository cannot be null");
+        }
+        this.shiftRepository = shiftRepository;
+    }
+
+    public void assignShift(VolunteerShift shift, AuthService auth) {
+        auth.requireRole("Coordinator");
+        if (shift == null) {
             throw new IllegalArgumentException("Shift cannot be null");
         }
+        if (shiftRepository.findById(shift.getShiftId()) != null) {
+            throw new IllegalArgumentException("Shift ID already exists");
+        }
+        if (shift.getAssignedBy() != auth.getCurrentUserId()) {
+            throw new SecurityException("Invalid assigning coordinator");
+        }
+        validateAssignment(shift);
 
-        List<VolunteerShift> existingShifts =
-            shiftRepository.findByVolunteerId(newShift.getVolunteerId());
+        dbWriter.addVolunteerShift(shift.getShiftId(), shift.getVolunteerId(),
+            shift.getAssignedBy(), shift.getShiftDate(), shift.getStartTime(),
+            shift.getEndTime(), shift.getAssignedTask());
+        shiftRepository.save(shift);
+    }
 
-        for (VolunteerShift existing : existingShifts) {
+    private void validateAssignment(VolunteerShift shift) {
+        if (userRepository == null) {
+            throw new IllegalStateException("User repository must be configured");
+        }
+        User user = userRepository.findById(shift.getVolunteerId());
+        if (!(user instanceof Volunteer) || !user.isActive()) {
+            throw new IllegalArgumentException("Active volunteer required");
+        }
+        Volunteer volunteer = (Volunteer) user;
+        checkAvailability(volunteer, shift.getShiftDate());
 
-            if (existing.getShiftDate().equals(newShift.getShiftDate())
-                && newShift.getStartTime().isBefore(existing.getEndTime())
-                && newShift.getEndTime().isAfter(existing.getStartTime())) {
-
+        for (VolunteerShift existing : shiftRepository.findByVolunteerId(shift.getVolunteerId())) {
+            boolean sameShift = existing.getShiftId() == shift.getShiftId();
+            boolean sameDate = existing.getShiftDate().equals(shift.getShiftDate());
+            boolean overlaps = shift.getStartTime().isBefore(existing.getEndTime())
+                && shift.getEndTime().isAfter(existing.getStartTime());
+            if (!sameShift && sameDate && overlaps) {
                 throw new IllegalStateException("Overlapping volunteer shift");
             }
         }
-        dbWriter.addVolunteerShift(
-            newShift.getShiftId(),
-            newShift.getVolunteerId(),
-            newShift.getAssignedBy(),
-            newShift.getShiftDate(),
-            newShift.getStartTime(),
-            newShift.getEndTime(),
-            newShift.getAssignedTask()
-        );
-        shiftRepository.save(newShift);
-    }
-    public List<VolunteerShift> getVolunteerShifts(AuthService authService){
-        User volunteer = authService.requireRole("Volunteer");
-
-        return shiftRepository.findByVolunteerId(
-            volunteer.getUserId()
-        );
-
     }
 
-    public void loadVolunteerShifts(VolunteerShiftRepository repo) {
-
-        String sql = "SELECT * FROM volunteer_shifts";
-
-        try (Connection conn = DatabaseConnection.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-
-                VolunteerShift shift = new VolunteerShift(
-                    rs.getInt("shift_id"),
-                    rs.getInt("volunteer_id"),
-                    rs.getObject("shift_date", LocalDate.class),
-                    rs.getObject("start_time", LocalTime.class),
-                    rs.getObject("end_time", LocalTime.class),
-                    rs.getString("task"),
-                    rs.getInt("coordinator_id")
-                );
-
-                repo.save(shift);
-            }
-
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+    private void checkAvailability(Volunteer volunteer, LocalDate date) {
+        String availability = volunteer.getAvailability();
+        if (availability == null) {
+            return;
         }
+        String days = availability.trim().toLowerCase(Locale.ROOT);
+        boolean weekdaysOnly = days.equals("weekdays") || days.equals("monday to friday");
+        boolean weekendsOnly = days.equals("weekends") || days.equals("saturday and sunday");
+        boolean weekend = date.getDayOfWeek().getValue() >= 6;
+
+        if ((weekdaysOnly && weekend) || (weekendsOnly && !weekend)) {
+            throw new IllegalArgumentException("Volunteer unavailable on this day");
+        }
+    }
+
+    public void updateShift(int id, LocalDate date, LocalTime start, LocalTime end,
+            String task, AuthService auth) {
+        auth.requireRole("Coordinator");
+        VolunteerShift old = findShift(id);
+        VolunteerShift updated = new VolunteerShift(id, old.getVolunteerId(), date,
+            start, end, task, old.getAssignedBy());
+        validateAssignment(updated);
+
+        dbWriter.updateVolunteerShift(id, date, start, end, task);
+        shiftRepository.update(updated);
+    }
+
+    public void deleteShift(int id, AuthService auth) {
+        auth.requireRole("Coordinator");
+        findShift(id);
+        dbWriter.deleteVolunteerShift(id);
+        shiftRepository.delete(id);
+    }
+
+    private VolunteerShift findShift(int id) {
+        VolunteerShift shift = shiftRepository.findById(id);
+        if (shift == null) {
+            throw new IllegalArgumentException("Shift not found");
+        }
+        return shift;
+    }
+
+    public List<VolunteerShift> getVolunteerShifts(AuthService auth) {
+        User volunteer = auth.requireRole("Volunteer");
+        return shiftRepository.findByVolunteerId(volunteer.getUserId());
+    }
+
+    // Existing entry points reuse the database loader instead of repeating SQL.
+    public void loadVolunteerShifts(VolunteerShiftRepository repo) {
+        new DatabaseLoader().loadVolunteerShifts(repo);
     }
 
     public void loadNotifications(NotificationRepository repo) {
-
-        String sql = "SELECT * FROM notifications";
-
-        try (Connection conn = DatabaseConnection.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(sql);
-            ResultSet rs = stmt.executeQuery()) {
-
-            while (rs.next()) {
-
-                Notification notification = new Notification(
-                    rs.getInt("notification_id"),
-                    NotificationType.valueOf(
-                        rs.getString("notification_type")
-                    ),
-                    rs.getInt("recipient_user_id"),
-                    rs.getString("recipient_email"),
-                    rs.getString("message")
-                );
-
-                if (rs.getBoolean("is_sent")) {
-                    notification.markSent();
-                }
-
-                repo.save(notification);
-            }
-
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
-        this.shiftRepository = shiftRepository;
+        new DatabaseLoader().loadNotifications(repo);
     }
 }

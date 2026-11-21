@@ -42,16 +42,12 @@ public class DonationService {
         if(donation == null) {
             throw new IllegalArgumentException("Donation cannot be null");
         }
-        if (user.getRole().equalsIgnoreCase("Donor")) {
-            if (donation.getDonorId() != user.getUserId()) {
-                throw new SecurityException("Access denied");
-            }
-        } else if (user.getRole().equalsIgnoreCase("Volunteer")) {
-            if (donation.getRecordedBy() != user.getUserId()) {
-                throw new SecurityException("Invalid recording volunteer");
-            }
-        } else {
-            throw new SecurityException("Access denied");
+        authService.requireRole("Volunteer");
+        if (donation.getRecordedBy() != user.getUserId()) {
+            throw new SecurityException("Invalid recording volunteer");
+        }
+        if (!donationRepository.getDonationById(donation.getDonationId()).isEmpty()) {
+            throw new IllegalArgumentException("Donation already exists");
         }
         dbWriter.addDonation(donation);
         donationRepository.save(donation);
@@ -71,6 +67,9 @@ public class DonationService {
 
         if (donation.getDonorId() != donor.getUserId()) {
             throw new SecurityException("Access denied");
+        }
+        if (donation.getStatus() != DonationStatus.CREATED) {
+            throw new IllegalStateException("Only new donations can be modified");
         }
         Donation updated = new Donation( donation.getDonationId(), donation.getDonorId(), donation.getRecordedBy(), itemName, categoryId, quantity, unit);
         updated.restoreFromDatabase(donation.getDonationDate(), donation.getStatus());
@@ -94,7 +93,7 @@ public class DonationService {
         Donation donation = donationList.get(0);
 
         if (donation.getStatus() == DonationStatus.COMPLETED) {
-            throw new IllegalStateException("Donation already completed");
+            return; // Retrying a completed donation must never increment stock twice.
         }
 
         if (inventoryItem == null || inventoryItem.getDonationId() != donationId) {
@@ -103,23 +102,24 @@ public class DonationService {
             );
         }
 
+        boolean sameItem = inventoryItem.getItemName().equals(donation.getItemName());
+        boolean sameCategory = inventoryItem.getCategoryId() == donation.getCategoryId();
+        boolean sameQuantity = inventoryItem.getQuantity() == donation.getQuantity();
+        boolean sameUnit = inventoryItem.getUnit().equals(donation.getUnit());
+        if (!sameItem || !sameCategory || !sameQuantity || !sameUnit) {
+            throw new IllegalArgumentException("Inventory must match the donation details");
+        }
+        inventoryService.validateNewInventory(inventoryItem);
+        dbWriter.markDonationPending(donationId);
         if (donation.getStatus() == DonationStatus.CREATED ||
             donation.getStatus() == DonationStatus.FAILED) {
             donation.setStatus(DonationStatus.PENDING);
         }
 
-        try {
-            dbWriter.updateDonation(donation);
-
-            dbWriter.completeDonation(donationId, inventoryItem.getInventoryId(), donation.getItemName(), donation.getCategoryId(), donation.getQuantity(), donation.getUnit(), inventoryItem.getExpiryDate());
-            inventoryService.addInventoryItem(inventoryItem);
-            donation.setStatus(DonationStatus.COMPLETED);
-        } catch (RuntimeException ex) {
-            if (donation.getStatus() == DonationStatus.PENDING) {
-                donation.setStatus(DonationStatus.FAILED);
-            }
-            throw ex;
-        }
+        dbWriter.completeDonation(donationId, inventoryItem.getInventoryId(), donation.getItemName(),
+            donation.getCategoryId(), donation.getQuantity(), donation.getUnit(), inventoryItem.getExpiryDate());
+        inventoryService.recordInventoryItem(inventoryItem);
+        donation.setStatus(DonationStatus.COMPLETED);
     }
 
     // retrieve a donation

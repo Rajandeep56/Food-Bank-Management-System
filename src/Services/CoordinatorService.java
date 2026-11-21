@@ -72,10 +72,11 @@ public class CoordinatorService {
 
     // volunteers cannot sign up themselves, a coordinator creates their account
     public Volunteer createVolunteerAccount(AuthService authService, int volunteerId, String name, String email,
-                                            String passwordHash, String phone, String availability) {
+                                            String password, String phone, String availability) {
         requireCoordinator(authService);
-        Volunteer volunteer = new Volunteer(volunteerId, name, email, passwordHash, phone, availability);
-        dbWriter.registerVolunteer(volunteerId, name, email, passwordHash, phone, availability, authService.getCurrentUserId());
+        Volunteer volunteer = new Volunteer(volunteerId, name, email, password, phone, availability);
+        userRepository.validateNewUser(volunteer);
+        dbWriter.registerVolunteer(volunteerId, name, email, volunteer.getPassword(), phone, availability, authService.getCurrentUserId());
         userRepository.save(volunteer);
         return volunteer;
     }
@@ -131,6 +132,11 @@ public class CoordinatorService {
                 "Category name cannot be empty"
             );
         }
+        categoryRepository.findById(categoryId);
+        for (Category existing : categoryRepository.findAll()) {
+            if (existing.getCategoryId() != categoryId && existing.getName().equalsIgnoreCase(name.trim()))
+                throw new IllegalArgumentException("Category name already exists");
+        }
         dbWriter.updateCategory(categoryId, name.trim());
         categoryRepository.updateCategory(
             categoryId, name.trim()
@@ -160,6 +166,8 @@ public class CoordinatorService {
             }
         }
 
+        categoryRepository.findById(categoryId);
+        dbWriter.deleteCategory(categoryId);
         categoryRepository.deleteCategory(categoryId);
     }
 
@@ -173,7 +181,24 @@ public class CoordinatorService {
 
         User user = userRepository.findById(userId);
 
-        user.updateProfile(name, user.getEmail(), phone);
+        if (name == null || name.isBlank() || phone == null || phone.isBlank()) {
+
+            throw new IllegalArgumentException("Name and phone required");
+
+        }
+        dbWriter.updateUser(userId, name.trim(), phone.trim());
+        user.updateProfile(name.trim(), user.getEmail(), phone.trim());
+    }
+
+    public void updateRecipientDetails(AuthService auth, int id, int householdSize, String diet, String emergencyContact) {
+        requireCoordinator(auth);
+        User user = userRepository.findById(id);
+        if (!(user instanceof Recipient)) {
+            throw new IllegalArgumentException("Recipient required");
+        }
+        Recipient.validateDetails(householdSize, emergencyContact);
+        dbWriter.updateRecipientProfile(id, householdSize, diet, emergencyContact);
+        ((Recipient) user).updateDetails(householdSize, diet, emergencyContact);
     }
 
     public void updateVolunteerAvailability(
@@ -193,7 +218,10 @@ public class CoordinatorService {
         }
 
         Volunteer volunteer = (Volunteer) user;
-        dbWriter.updateVolunteer(volunteerId, availability);
+        if (availability == null || availability.isBlank()) {
+            throw new IllegalArgumentException("Availability required");
+        }
+        dbWriter.updateVolunteer(volunteerId, availability.trim());
 
         volunteer.setAvailability(availability);
     }

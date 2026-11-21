@@ -1,5 +1,9 @@
 package Services;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Locale;
+
 import Repository.UserRepository;
 import database.DatabaseWriter;
 import model.Donor;
@@ -10,24 +14,51 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private User currentUser;
+    private final Clock clock;
+    private Instant lastActivity;
     private DatabaseWriter dbWriter = new DatabaseWriter();
 
     public AuthService(UserRepository userRepository) {
-        this.userRepository = userRepository;
+        this(userRepository, Clock.systemUTC());
+    }
+
+    public AuthService(UserRepository users, Clock clock) {
+        if (users == null || clock == null) {
+            throw new IllegalArgumentException("User repository and clock are required");
+        }
+        this.userRepository = users;
+        this.clock = clock;
     }
 
     public User login(String email, String password) {
 
-        User user = userRepository.findByEmail(email);
-
-        if (!user.isActive()) {
-            throw new IllegalStateException("Account is inactive");
-        }
-
-        if (!user.verifyPassword(password)) {
+        currentUser = null;
+        User user = userRepository.findByEmailOrNull(email);
+        if (user == null || !user.isActive()) {
             throw new IllegalArgumentException("Invalid credentials");
         }
-        this.currentUser = user;
+        Instant now = clock.instant();
+        if (user.getLockedUntil() != null && now.isBefore(user.getLockedUntil())) {
+            throw new SecurityException("Account temporarily locked");
+        }
+        int failed = user.getFailedLogins();
+        if (user.getLockedUntil() != null) {
+            failed = 0; // A previous lock has expired.
+        }
+        if (!user.verifyPassword(password)) {
+            failed++;
+            Instant until = null;
+            if (failed >= 5) {
+                until = now.plusSeconds(15 * 60);
+            }
+            dbWriter.updateLoginState(user.getUserId(), failed, until);
+            user.restoreLoginState(failed, until);
+            throw new IllegalArgumentException("Invalid credentials");
+        }
+        dbWriter.updateLoginState(user.getUserId(), 0, null);
+        user.restoreLoginState(0, null);
+        currentUser = user;
+        lastActivity = now;
         return user;
     }
 
@@ -42,6 +73,7 @@ public class AuthService {
             );
         }
 
+        userRepository.validateNewUser(user);
         if (user instanceof Recipient recipient) {
 
             dbWriter.registerRecipient(
@@ -49,7 +81,7 @@ public class AuthService {
                 recipient.getName(),
                 recipient.getEmail(),
                 recipient.getPhone(),
-                recipient.getPasswordHash(),
+                recipient.getPassword(),
                 recipient.getHouseholdSize(),
                 recipient.getDietaryRestrictions(),
                 recipient.getEmergencyContact()
@@ -62,7 +94,7 @@ public class AuthService {
                 user.getName(),
                 user.getEmail(),
                 user.getPhone(),
-                user.getPasswordHash(),
+                user.getPassword(),
                 "Donor"
             );
         }
@@ -74,24 +106,26 @@ public class AuthService {
 
     public User getCurrentUser() {
 
-        if (currentUser == null || !currentUser.isActive()) {
+        if (!isLoggedIn()) {
+            currentUser = null;
             throw new SecurityException("Please login first");
         }
-
+        lastActivity = clock.instant();
         return currentUser;
     }
+
     public boolean isLoggedIn() {
-        return currentUser != null && currentUser.isActive();
+        if (currentUser == null || !currentUser.isActive() || lastActivity == null) {
+            return false;
+        }
+        Instant expiresAt = lastActivity.plusSeconds(30 * 60);
+        return clock.instant().isBefore(expiresAt);
     }
 
     public void updateProfile(
         String name, String email, String phone) {
 
         User user = getCurrentUser();
-
-        if (user == null) {
-            throw new SecurityException("Login required");
-        }
 
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Name cannot be empty");
@@ -106,11 +140,11 @@ public class AuthService {
             throw new IllegalArgumentException("Phone cannot be empty");
         }
 
-        email = email.trim().toLowerCase(java.util.Locale.ROOT);
+        email = email.trim().toLowerCase(Locale.ROOT);
         name = name.trim();
         phone = phone.trim();
 
-        User existingUser = userRepository.findByEmail(email);
+        User existingUser = userRepository.findByEmailOrNull(email);
 
         if (existingUser != null &&
             existingUser.getUserId() != user.getUserId()) {
@@ -134,8 +168,21 @@ public class AuthService {
         String newPassword
     ) {
         User user = getCurrentUser();
+        if (!user.verifyPassword(oldPassword)) {
+            throw new IllegalArgumentException("Incorrect old password");
+        }
+        if (newPassword == null || newPassword.isBlank()) {
+            throw new IllegalArgumentException("Password cannot be empty");
+        }
         dbWriter.changePassword(user.getUserId(), newPassword);
-        user.changePassword(oldPassword, newPassword);
+        user.setPassword(newPassword);
+    }
+
+    public void updateRecipientProfile(int householdSize, String dietaryRestrictions, String emergencyContact) {
+        Recipient recipient = (Recipient) requireRole("Recipient");
+        Recipient.validateDetails(householdSize, emergencyContact);
+        dbWriter.updateRecipientProfile(recipient.getUserId(), householdSize, dietaryRestrictions, emergencyContact);
+        recipient.updateDetails(householdSize, dietaryRestrictions, emergencyContact);
     }
 
     public User requireRole(String role) {
