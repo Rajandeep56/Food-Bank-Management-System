@@ -30,6 +30,13 @@ public class VolunteerShiftRepository {
         return result;
 
     }
+    public void update(VolunteerShift shift) {
+        if (shift == null || !shifts.containsKey(shift.getShiftId())) throw new IllegalArgumentException("Shift not found");
+        shifts.put(shift.getShiftId(), shift);
+    }
+    public void delete(int id) {
+        if (shifts.remove(id) == null) throw new IllegalArgumentException("Shift not found");
+    }
     public List<VolunteerShift> findAll() {
         return new ArrayList<>(shifts.values());
     }

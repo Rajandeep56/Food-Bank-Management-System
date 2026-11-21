@@ -74,7 +74,23 @@ public class UserRepository {
             ((Recipient) user).updateApprovalStatus(RecipientApprovalStatus.valueOf(rs.getString("approval_status").toUpperCase() ) );
         }
 
+        Timestamp lock = rs.getTimestamp("locked_until");
+        user.restoreLoginState(rs.getInt("failed_logins"), lock == null ? null : lock.toInstant());
         return user;
+    }
+
+    public void validateNewUser(User user) {
+        if (user == null) throw new IllegalArgumentException("User cannot be null");
+        if (users.containsKey(user.getUserId())) throw new IllegalArgumentException("User ID already exists");
+        if (findByEmailOrNull(user.getEmail()) != null) throw new IllegalArgumentException("Email already registered");
+    }
+
+    public User findByEmailOrNull(String email) {
+        if (email == null) return null;
+        for (User user : users.values()) {
+            if (user.getEmail().equalsIgnoreCase(email.trim())) return user;
+        }
+        return null;
     }
 
     public void save(User user) {

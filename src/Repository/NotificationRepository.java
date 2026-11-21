@@ -20,6 +20,7 @@ public class NotificationRepository {
             throw new IllegalArgumentException("Notification with this ID already exists");
         }
         notifications.put(notification.getNotificationId(), notification);
+        nextId = Math.max(nextId, notification.getNotificationId() + 1);
     }
 
     public List<Notification> findAll() {
