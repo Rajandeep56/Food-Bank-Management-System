@@ -4,6 +4,7 @@ import common.InventoryChangeType;
 import database.DatabaseWriter;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 import Repository.InventoryRepository;
@@ -25,8 +26,33 @@ public class InventoryService {
         if(inventoryItem == null) {
             throw new IllegalArgumentException("Inventory item cannot be null");
         }
+        validateNewInventory(inventoryItem);
+        InventoryHistory record = new InventoryHistory(inventoryItem.getInventoryId(), inventoryItem.getQuantity(), InventoryChangeType.DONATION_RECEIVED, inventoryItem.getCategoryId(), inventoryItem.getUnit());
+        dbWriter.addInventory(inventoryItem, record);
         inventoryRepository.save(inventoryItem);
-        history.add(new InventoryHistory(inventoryItem.getInventoryId(), inventoryItem.getQuantity(), InventoryChangeType.DONATION_RECEIVED, inventoryItem.getCategoryId(), inventoryItem.getUnit()));
+        history.add(record);
+    }
+
+    public void addInventoryItem(InventoryItem item, AuthService auth) {
+        auth.requireRole("Volunteer");
+        addInventoryItem(item);
+    }
+
+    void validateNewInventory(InventoryItem item) {
+        if (item.getQuantity() <= 0) {
+            throw new IllegalArgumentException("New stock must be positive");
+        }
+        for (InventoryItem existing : inventoryRepository.getAllInventoryItems()) {
+            if (existing.getInventoryId() == item.getInventoryId()) {
+                throw new IllegalArgumentException("Inventory ID already exists");
+            }
+        }
+    }
+
+    // Called only after the donation transaction has persisted intake and history.
+    void recordInventoryItem(InventoryItem item) {
+        inventoryRepository.save(item);
+        history.add(new InventoryHistory(item.getInventoryId(), item.getQuantity(), InventoryChangeType.DONATION_RECEIVED, item.getCategoryId(), item.getUnit()));
     }
 
     public void adjustStock(int inventoryId, int adjustment, InventoryChangeType changeType) {
@@ -37,7 +63,10 @@ public class InventoryService {
             throw new IllegalArgumentException("Change type cannot be null");
         }
         InventoryItem item = inventoryRepository.getInventoryItemById(inventoryId);
-        int newQuantity = item.getQuantity() + adjustment;
+        if (!item.isAvailable()) {
+            throw new IllegalStateException("Inventory is no longer available");
+        }
+        int newQuantity = Math.addExact(item.getQuantity(), adjustment);
 
         if (newQuantity < 0) {
             throw new IllegalArgumentException("Insufficient inventory");
@@ -56,16 +85,21 @@ public class InventoryService {
         }
         item.adjustQuantity(adjustment);
         history.add(record);
+        if (newQuantity == 0 && changeType == InventoryChangeType.WASTED) {
+            LocalDate wasteDate = record.getOccurredAt().atZone(ZoneId.systemDefault()).toLocalDate();
+            item.markWaste(wasteDate);
+        }
     }
 
-     public List<InventoryHistory> getHistory() {
-            return new ArrayList<>(history);
-        }
+    public List<InventoryHistory> getHistory() {
+        return new ArrayList<>(history);
+    }
+
     public void processExpiredInventory(LocalDate today) {
 
         for (InventoryItem item : inventoryRepository.getAllInventoryItems()) {
 
-            if (item.isExpired(today) && item.getQuantity() > 0) {
+            if (item.isAvailable() && item.isExpired(today) && item.getQuantity() > 0) {
 
                 adjustStock(
                     item.getInventoryId(),
@@ -145,6 +179,37 @@ public class InventoryService {
             InventoryChangeType.MANUAL_ADJUSTMENT
         );
     }
+    public void deleteInventory(int id, AuthService auth) {
+        auth.requireRole("Volunteer");
+        InventoryItem item = inventoryRepository.getInventoryItemById(id);
+        if (!item.isAvailable()) {
+            return;
+        }
+        if (item.getQuantity() > 0) {
+            discardInventory(id, auth);
+        } else {
+            dbWriter.discardInventory(id);
+            item.markWaste(LocalDate.now());
+        }
+    }
+
+    public InventoryItem getInventoryItem(int id) {
+        return inventoryRepository.getInventoryItemById(id);
+    }
+
+    public void updateInventoryDetails(int id, String name, LocalDate expiry, AuthService auth) {
+        auth.requireRole("Volunteer");
+        InventoryItem item = inventoryRepository.getInventoryItemById(id);
+        if (!item.isAvailable()) {
+            throw new IllegalStateException("Written-off stock cannot be modified");
+        }
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Item name required");
+        }
+        dbWriter.updateInventoryDetails(id, name.trim(), expiry);
+        item.updateDetails(name, expiry);
+    }
+
     public void loadHistory(InventoryHistory record) {
         history.add(record);
     }

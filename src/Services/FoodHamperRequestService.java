@@ -53,6 +53,14 @@ public class FoodHamperRequestService {
         if (pickupTime == null) {
             throw new IllegalArgumentException("Pickup time is required");
         }
+        if (!distributionRepository.findByRequestId(requestId).isEmpty()) {
+            throw new IllegalArgumentException("Request already exists");
+        }
+        for (FoodHamperRequest existing : requestRepository.findByRecipientId(recipient.getUserId())) {
+            if (existing.getRequestId() == requestId) {
+                throw new IllegalArgumentException("Request already exists");
+            }
+        }
         FoodHamperRequest request = new FoodHamperRequest(requestId, recipient.getUserId());
         request.schedulePickup(pickupDate);
 
@@ -61,7 +69,7 @@ public class FoodHamperRequestService {
         dbWriter.createHamperRequest(
             requestId,
             authService.getCurrentUserId(),
-            pickupDate
+            pickupDate, pickupTime
         );
         requestRepository.save(request);
         distributionRepository.save(distribution);
@@ -81,7 +89,14 @@ public class FoodHamperRequestService {
         if (request.getRecipientId() != recipient.getUserId()) {
             throw new SecurityException("Access denied");
         }
+        if (request.getStatus() == common.HamperRequestStatus.FULFILLED) {
+            throw new IllegalStateException("Cannot cancel fulfilled request");
+        }
         dbWriter.cancelHamperRequest(requestId);
+        for (Distribution d : distributionRepository.findByRequestId(requestId)) {
+            if (d.getPickupStatus() == common.PickupStatus.SCHEDULED || d.getPickupStatus() == common.PickupStatus.DELAYED)
+                distributionRepository.delete(d.getDistributionId());
+        }
         request.cancel();
     }
     

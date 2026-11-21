@@ -29,6 +29,11 @@ public class DistributionService {
     private final InventoryService inventoryService;
     private final InventoryRepository inventoryRepository;
     private VolunteerShiftRepository shiftRepository;
+    private NotificationService notificationService;
+
+    public void setNotificationService(NotificationService service) {
+        notificationService = java.util.Objects.requireNonNull(service);
+    }
     private DatabaseWriter dbWriter = new DatabaseWriter();
     
     public DistributionService(DistributionRepository distributionRepository, FoodHamperRequestRepository hamperRequestRepository, InventoryService inventoryService, InventoryRepository inventoryRepository) {
@@ -71,7 +76,7 @@ public class DistributionService {
             int id = item.getInventoryId();
             int quantity = item.getQuantity();
             int previous = requiredQuantities.getOrDefault(id, 0);
-            int totalRequired = previous + quantity;
+            int totalRequired = Math.addExact(previous, quantity);
             InventoryItem stock = inventoryRepository.getInventoryItemById(id);
 
             if (stock == null) {
@@ -79,6 +84,8 @@ public class DistributionService {
                     "Inventory item not found: " + id
                 );
             }
+            if (!stock.isAvailable() || stock.isExpired(LocalDate.now()) || !stock.getUnit().equals(item.getUnit()))
+                throw new IllegalStateException("Stock must be available, unexpired and use the same unit");
             if (stock.getQuantity() < totalRequired) {
                 throw new IllegalStateException("Insufficient stock for inventory item ID: " + id);
             }
@@ -105,7 +112,7 @@ public class DistributionService {
                 "Cannot fulfill a cancelled hamper request"
             );
         }
-        validateShift(authService.getCurrentUserId(), distribution.getDistributionDate(), distribution.getPickupTime());
+        authorizeDistribution(distribution, authService);
         dbWriter.fulfillDistribution(distributionId, distribution.getRequestId(), authService.getCurrentUserId(), distribution.getItems());
 
         // adjust stock
@@ -115,6 +122,7 @@ public class DistributionService {
             inventoryService.adjustStock(inventoryId, -adjustment, InventoryChangeType.DISTRIBUTED);  
         }
 
+        distribution.setVolunteerId(authService.getCurrentUserId());
         distribution.markPickupStatus(PickupStatus.FULFILLED);
         request.markFulfilled();
         
@@ -128,17 +136,13 @@ public class DistributionService {
 
         Distribution distribution = distributionRepository.findById(distributionId);
 
-        if (distribution==null){
-            throw new IllegalStateException("distribution not found");
-        }
-
-        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED && distribution.getPickupStatus() != PickupStatus.DELAYED) {
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED && distribution.getPickupStatus() != PickupStatus.DELAYED && distribution.getPickupStatus() != PickupStatus.MISSED) {
             throw new IllegalStateException(
                 "Only scheduled or delayed pickups can be marked missed"
             );
         }
-        dbWriter.updatePickupStatus(distributionId, "MISSED");
-        distribution.markPickupStatus(PickupStatus.MISSED);
+        authorizeDistribution(distribution, authService);
+        requireNotifications().markPickupStatus(distributionId, PickupStatus.MISSED);
 
     }
 
@@ -150,36 +154,91 @@ public class DistributionService {
 
         Distribution distribution = distributionRepository.findById(distributionId);
 
-        if (distribution==null){
-            throw new IllegalStateException("distribution not found");
-        }
-
-        if(distribution.getPickupStatus() != PickupStatus.SCHEDULED){
+        if(distribution.getPickupStatus() != PickupStatus.SCHEDULED && distribution.getPickupStatus() != PickupStatus.DELAYED){
             throw new IllegalArgumentException("pickup was not scheduled");
         }
-        dbWriter.updatePickupStatus(distributionId, "DELAYED");
-        distribution.markPickupStatus(PickupStatus.DELAYED);
+        authorizeDistribution(distribution, authService);
+        requireNotifications().markPickupStatus(distributionId, PickupStatus.DELAYED);
     }
 
+    @Deprecated
     public void setPickupTime(int distributionId, LocalTime pickupTime) {
+        throw new SecurityException("Use authenticated setPickupTime overload");
+    }
 
-        Distribution distribution =
-            distributionRepository.findById(distributionId);
-
-        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
-            throw new IllegalStateException(
-                "Only scheduled pickups can be modified"
-            );
-        }
-
-        distribution.setPickupTime(pickupTime);
+    public void setPickupTime(int distributionId, LocalTime time, AuthService auth) {
+        Distribution distribution = distributionRepository.findById(distributionId);
+        auth.requireRole("Volunteer");
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED || time == null)
+            throw new IllegalArgumentException("Scheduled pickup and time required");
+        authorizeDistribution(distribution, auth);
+        validateShift(auth.getCurrentUserId(), distribution.getDistributionDate(), time);
+        dbWriter.updateDistribution(distributionId, distribution.getPickupStatus().name(), time, distribution.getVolunteerId());
+        distribution.setPickupTime(time);
     }
 
     public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
         this.shiftRepository = shiftRepository;
     }
 
+    private void authorizeDistribution(Distribution distribution, AuthService auth) {
+        auth.requireRole("Volunteer");
+        Integer assignedVolunteer = distribution.getVolunteerId();
+        if (assignedVolunteer != null && assignedVolunteer != auth.getCurrentUserId()) {
+            throw new SecurityException("Distribution belongs to another volunteer");
+        }
+        validateShift(auth.getCurrentUserId(), distribution.getDistributionDate(), distribution.getPickupTime());
+    }
+
+    private Distribution editableDistribution(int id, AuthService auth) {
+        auth.requireRole("Volunteer");
+        Distribution distribution = distributionRepository.findById(id);
+        authorizeDistribution(distribution, auth);
+        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
+            throw new IllegalStateException("Only scheduled distributions can be modified");
+        }
+        return distribution;
+    }
+
+    public void addDistributionItem(int distributionId, DistributionItem item, AuthService auth) {
+        Distribution distribution = editableDistribution(distributionId, auth);
+        if (item == null) {
+            throw new IllegalArgumentException("Item required");
+        }
+        InventoryItem inventory = inventoryRepository.getInventoryItemById(item.getInventoryId());
+        if (!inventory.isAvailable() || inventory.isExpired(LocalDate.now()) || !inventory.getUnit().equals(item.getUnit()))
+            throw new IllegalArgumentException("Available inventory and matching unit required");
+        for (Distribution existingDistribution : distributionRepository.findAll()) {
+            for (DistributionItem existing : existingDistribution.getItems()) {
+                if (existing.getDistributionItemId() == item.getDistributionItemId()) {
+                    throw new IllegalArgumentException("Item ID already exists");
+                }
+            }
+        }
+        int total = item.getQuantity();
+        for (DistributionItem existing : distribution.getItems()) {
+            if (existing.getInventoryId() == item.getInventoryId()) {
+                throw new IllegalArgumentException("Update existing inventory line instead");
+            }
+        }
+        if (total > inventory.getQuantity()) {
+            throw new IllegalStateException("Insufficient inventory");
+        }
+        dbWriter.addDistributionItem(item.getDistributionItemId(), distributionId, item.getInventoryId(), total, item.getUnit());
+        distribution.addItem(item);
+    }
+
+    private NotificationService requireNotifications() {
+        if (notificationService == null) {
+            throw new IllegalStateException("Notification service must be configured");
+        }
+        return notificationService;
+    }
+
     private void validateShift(int volunteerId, LocalDate date, LocalTime time) {
+        if (shiftRepository == null || time == null) {
+            throw new IllegalStateException("Shift repository and pickup time are required");
+        }
         for (VolunteerShift shift : shiftRepository.findByVolunteerId(volunteerId)) {
             if (shift.getShiftDate().equals(date) && !time.isBefore(shift.getStartTime()) && time.isBefore(shift.getEndTime())) {
                 return;
@@ -230,6 +289,7 @@ public class DistributionService {
     public void deleteDistribution(int distributionId, AuthService authService) {
         authService.requireRole("Volunteer");
         Distribution distribution = distributionRepository.findById(distributionId);
+        authorizeDistribution(distribution, authService);
 
         if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
             throw new IllegalStateException(
@@ -241,14 +301,7 @@ public class DistributionService {
     }
 
     public void updateDistributionItem( int distributionId, int inventoryId,  int newQuantity, AuthService authService  ) {
-        authService.requireRole("Volunteer");
-        Distribution distribution = distributionRepository.findById(distributionId);
-
-        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
-            throw new IllegalStateException(
-                "Only scheduled distributions can be modified"
-            );
-        }
+        Distribution distribution = editableDistribution(distributionId, authService);
 
         if (newQuantity <= 0) {
             throw new IllegalArgumentException("Invalid quantity");
@@ -257,7 +310,20 @@ public class DistributionService {
         InventoryItem inventory =
             inventoryRepository.getInventoryItemById(inventoryId);
 
-        if (newQuantity > inventory.getQuantity()) {
+        if (!inventory.isAvailable() || inventory.isExpired(LocalDate.now())) {
+
+            throw new IllegalStateException("Stock unavailable");
+
+        }
+        int required = newQuantity;
+        boolean first = true;
+        for (DistributionItem line : distribution.getItems()) {
+            if (line.getInventoryId() == inventoryId) {
+                if (first) first = false;
+                else required = Math.addExact(required, line.getQuantity());
+            }
+        }
+        if (required > inventory.getQuantity()) {
             throw new IllegalStateException("Insufficient inventory");
         }
 
@@ -275,20 +341,11 @@ public class DistributionService {
         throw new IllegalArgumentException("Distribution item not found");
     }
     public void removeDistributionItem(int distributionId, int inventoryId, AuthService authService) {
-        authService.requireRole("Volunteer");
-        Distribution distribution = distributionRepository.findById(distributionId);
-
-        if (distribution.getPickupStatus() != PickupStatus.SCHEDULED) {
-            throw new IllegalStateException(
-                "Only scheduled distributions can be modified"
-            );
-        }
+        Distribution distribution = editableDistribution(distributionId, authService);
 
         for (DistributionItem item : distribution.getItems()) {
             if (item.getInventoryId() == inventoryId) {
-                dbWriter.deleteDistributionItem(
-                    item.getDistributionItemId()
-                );
+                dbWriter.deleteDistributionItems(distributionId, inventoryId);
                 distribution.removeItem(inventoryId);
                 return;
             }
