@@ -19,6 +19,7 @@ public class DatabaseConnectionTest {
             System.out.println(
                 "Connection failed: " + e.getMessage()
             );
+            System.exit(1);
         }
     }
 }

@@ -9,26 +9,17 @@ import model.*;
 import common.*;
 import Services.InventoryService;
 
-import model.Notification;
-import Repository.CategoryRepository;
-import Repository.DistributionRepository;
-import Repository.DonationRepository;
-import Repository.FoodHamperRequestRepository;
-import Repository.InventoryRepository;
-import Repository.UserRepository;
-import Repository.VolunteerShiftRepository;
-import Services.InventoryService;
-import model.Category;
-import model.Distribution;
-import model.DistributionItem;
-import model.Donation;
-import model.FoodHamperRequest;
-import model.InventoryHistory;
-import model.InventoryItem;
-import model.VolunteerShift;
-import Repository.NotificationRepository;
-
 public class DatabaseLoader {
+    private static int wholeQuantity(ResultSet rs, String column) throws SQLException {
+        java.math.BigDecimal value = rs.getBigDecimal(column);
+        try {
+            if (value == null) throw new ArithmeticException("Null quantity");
+            return value.intValueExact();
+        } catch (ArithmeticException e) {
+            throw new SQLException("Unsupported fractional or out-of-range quantity in " + column, e);
+        }
+    }
+
 
     public void loadUsers(UserRepository userRepository) {
 
@@ -97,7 +88,7 @@ public class DatabaseLoader {
                 rs.getInt("recorded_by"),
                 rs.getString("item_name"),
                 rs.getInt("category_id"),
-                rs.getInt("quantity"),
+                wholeQuantity(rs, "quantity"),
                 rs.getString("unit")
             );
 
@@ -128,12 +119,14 @@ public class DatabaseLoader {
                     rs.getInt("inventory_id"),
                     rs.getString("item_name"),
                     rs.getInt("category_id"),
-                    rs.getInt("quantity"),
+                    wholeQuantity(rs, "quantity"),
                     rs.getString("unit"),
                     rs.getObject("expiry_date", java.time.LocalDate.class),
                     rs.getInt("donation_id")
                 );
 
+                item.restoreFromDatabase(rs.getDate("received_date").toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant(),
+                    wholeQuantity(rs, "quantity_received"), rs.getString("status"), rs.getObject("waste_date", LocalDate.class));
                 repo.save(item);
             }
 
@@ -157,6 +150,8 @@ public class DatabaseLoader {
                     rs.getInt("recipient_id")
                 );
 
+                request.restoreFromDatabase(rs.getObject("request_date", LocalDate.class),
+                    rs.getObject("pickup_date", LocalDate.class), HamperRequestStatus.valueOf(rs.getString("status")));
                 repo.save(request);
             }
 
@@ -189,6 +184,7 @@ public class DatabaseLoader {
                     distribution.setPickupTime(time);
                 }
 
+                distribution.setVolunteerId((Integer) rs.getObject("volunteer_id"));
                 repo.save(distribution);
             }
 
@@ -214,7 +210,7 @@ public class DatabaseLoader {
                 DistributionItem item = new DistributionItem(
                     rs.getInt("distribution_item_id"),
                     rs.getInt("inventory_id"),
-                    rs.getInt("quantity"),
+                    wholeQuantity(rs, "quantity"),
                     rs.getString("unit")
                 );
 
@@ -275,6 +271,7 @@ public class DatabaseLoader {
                     rs.getString("message")
                 );
 
+                notification.setReason(rs.getString("reason"));
                 notification.restoreFromDatabase( rs.getTimestamp("created_at").toInstant(), rs.getBoolean("is_sent"));
                 repo.save(notification);
             }
@@ -326,7 +323,7 @@ public class DatabaseLoader {
 
                  InventoryHistory record = new InventoryHistory(
                         rs.getInt("inventory_id"),
-                        rs.getInt("quantity_change"),
+                        wholeQuantity(rs, "quantity_change"),
                         InventoryChangeType.valueOf(rs.getString("change_type")),
                         rs.getInt("category_id"),
                         rs.getString("unit")

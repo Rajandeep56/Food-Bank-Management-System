@@ -1,6 +1,7 @@
 package database;
 
 import java.sql.*;
+import java.time.ZoneId;
 
 public class DatabaseConnection {
 
@@ -10,9 +11,6 @@ public class DatabaseConnection {
         String user = System.getenv("DB_USER");
         String password = System.getenv("DB_PASSWORD");
 
-        System.out.println("Database URL: " + url);
-        System.out.println("Database User: " + user);
-
         if (url == null || !url.startsWith("jdbc:postgresql://")) {
             throw new SQLException("Invalid database URL");
         }
@@ -21,14 +19,29 @@ public class DatabaseConnection {
             throw new SQLException("Missing database credentials");
         }
 
-        Connection connection = DriverManager.getConnection(
-            url, user, password
-        );
-
-        connection.setSchema("food_bank");
-
-        System.out.println("Connected schema: " + connection.getSchema());
-
-        return connection;
+        String schema = getSchemaName();
+        ZoneId zone = ZoneId.of(System.getenv().getOrDefault("AI_TIMEZONE", "America/Vancouver"));
+        Connection connection = DriverManager.getConnection(url, user, password);
+        try {
+            connection.setSchema(schema);
+            try (PreparedStatement stmt = connection.prepareStatement("SELECT set_config('TimeZone', ?, false)")) {
+                stmt.setString(1, zone.getId());
+                stmt.execute();
+            }
+            return connection;
+        } catch (SQLException | RuntimeException e) {
+            connection.close();
+            throw e;
+        }
     }
+
+    public static String getSchemaName() {
+        String defaultSchema = System.getenv().getOrDefault("DB_SCHEMA", "food_bank");
+        String schema = System.getProperty("foodbank.schema", defaultSchema);
+        if (!schema.matches("[a-z_][a-z0-9_]*")) {
+            throw new IllegalArgumentException("Invalid schema name");
+        }
+        return schema;
+    }
+
 }

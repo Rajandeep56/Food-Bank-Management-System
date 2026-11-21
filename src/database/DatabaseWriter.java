@@ -12,7 +12,27 @@ import model.InventoryHistory;
 
 
 public class DatabaseWriter {
-    public static boolean enabled = false;
+    public static boolean enabled = true;
+
+    public void updateLoginState(int id, int attempts, java.time.Instant until) {
+        if (!enabled) return;
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE users SET failed_logins = ?, locked_until = ? WHERE user_id = ?")) {
+            stmt.setInt(1, attempts);
+            stmt.setTimestamp(2, until == null ? null : Timestamp.from(until));
+            stmt.setInt(3, id);
+            if (stmt.executeUpdate() != 1) throw new SQLException("User not found");
+        } catch (SQLException e) { throw new RuntimeException("Failed to update login state", e); }
+    }
+
+    public void updateRecipientProfile(int id, int size, String diet, String contact) {
+        if (!enabled) return;
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE recipients SET household_size = ?, dietary_restrictions = ?, emergency_contact = ? WHERE recipient_id = ?")) {
+            stmt.setInt(1, size); stmt.setString(2, diet); stmt.setString(3, contact); stmt.setInt(4, id);
+            if (stmt.executeUpdate() != 1) throw new SQLException("Recipient not found");
+        } catch (SQLException e) { throw new RuntimeException("Failed to update recipient profile", e); }
+    }
 
     public void addCategory(int id, String name) {
         if (!enabled) {
@@ -277,6 +297,24 @@ public class DatabaseWriter {
         }
     }
 
+    public void addInventory(model.InventoryItem item, InventoryHistory history) {
+        if (!enabled) return;
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            conn.setAutoCommit(false);
+            try (PreparedStatement a = conn.prepareStatement("INSERT INTO inventory (inventory_id, donation_id, item_name, category_id, quantity, quantity_received, unit, expiry_date, received_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                 PreparedStatement b = conn.prepareStatement("INSERT INTO inventory_history (inventory_id, category_id, unit, quantity_change, change_type, occurred_at) VALUES (?, ?, ?, ?, ?, ?)")) {
+                a.setInt(1, item.getInventoryId()); a.setObject(2, item.getDonationId() == 0 ? null : item.getDonationId());
+                a.setString(3, item.getItemName()); a.setInt(4, item.getCategoryId()); a.setInt(5, item.getQuantity());
+                a.setInt(6, item.getQuantity()); a.setString(7, item.getUnit()); a.setObject(8, item.getExpiryDate());
+                a.setObject(9, item.getReceivedDate().atZone(java.time.ZoneId.systemDefault()).toLocalDate()); a.executeUpdate();
+                b.setInt(1, history.getInventoryId()); b.setInt(2, history.getCategoryId()); b.setString(3, history.getUnit());
+                b.setInt(4, history.getQuantityChange()); b.setString(5, history.getChangeType().name());
+                b.setTimestamp(6, Timestamp.from(history.getOccurredAt())); b.executeUpdate();
+                conn.commit();
+            } catch (SQLException e) { conn.rollback(); throw e; }
+        } catch (SQLException e) { throw new RuntimeException("Failed to add inventory", e); }
+    }
+
     public void addInventory(int id, Integer donationId,
         String name, int categoryId, int quantity,
         String unit, LocalDate expiryDate) {
@@ -308,6 +346,15 @@ public class DatabaseWriter {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void updateInventoryDetails(int id, String name, LocalDate expiry) {
+        if (!enabled) return;
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE inventory SET item_name = ?, expiry_date = ? WHERE inventory_id = ? AND status = 'Available'")) {
+            stmt.setString(1, name); stmt.setObject(2, expiry); stmt.setInt(3, id);
+            if (stmt.executeUpdate() != 1) throw new SQLException("Available inventory not found");
+        } catch (SQLException e) { throw new RuntimeException("Failed to update inventory", e); }
     }
 
     public void discardInventory(int id) {
@@ -602,6 +649,15 @@ public class DatabaseWriter {
         }
     }
 
+    public void deleteDistributionItems(int distributionId, int inventoryId) {
+        if (!enabled) return;
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(
+                "DELETE FROM distribution_items WHERE distribution_id = ? AND inventory_id = ?")) {
+            stmt.setInt(1, distributionId); stmt.setInt(2, inventoryId);
+            if (stmt.executeUpdate() < 1) throw new SQLException("Distribution item not found");
+        } catch (SQLException e) { throw new RuntimeException("Failed to remove distribution items", e); }
+    }
+
     public void deleteDistributionItem(int id) {
         if (!enabled) {
             return;
@@ -726,6 +782,20 @@ public class DatabaseWriter {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void addNotification(model.Notification notification) {
+        if (!enabled) return;
+        String sql = "INSERT INTO notifications (notification_id, recipient_user_id, recipient_email, notification_type, message, reason) VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, notification.getNotificationId());
+            stmt.setInt(2, notification.getRecipientUserId());
+            stmt.setString(3, notification.getRecipientEmail());
+            stmt.setString(4, notification.getType().name());
+            stmt.setString(5, notification.getMessage());
+            stmt.setString(6, notification.getReason());
+            stmt.executeUpdate();
+        } catch (SQLException e) { throw new RuntimeException("Failed to persist notification", e); }
     }
 
     public void markNotificationSent(int id) {
@@ -878,6 +948,15 @@ public class DatabaseWriter {
             throw new RuntimeException(e);
         }
     }
+    public void markDonationPending(int donationId) {
+        if (!enabled) return;
+        try (Connection conn = DatabaseConnection.getConnection(); PreparedStatement stmt = conn.prepareStatement(
+                "UPDATE donations SET status = 'PENDING' WHERE donation_id = ? AND status IN ('CREATED', 'FAILED', 'PENDING')")) {
+            stmt.setInt(1, donationId);
+            if (stmt.executeUpdate() != 1) throw new SQLException("Donation already completed or absent; reload before retry");
+        } catch (SQLException e) { throw new RuntimeException("Unable to queue donation", e); }
+    }
+
     public void completeDonation(int donationId, int inventoryId,
         String itemName, int categoryId, int quantity,
         String unit, LocalDate expiryDate) {
@@ -887,7 +966,7 @@ public class DatabaseWriter {
 
         String donationSql = """
             UPDATE donations SET status = 'COMPLETED'
-            WHERE donation_id = ? AND status = 'PENDING'
+            WHERE donation_id = ? AND status IN ('CREATED', 'PENDING', 'FAILED')
             """;
 
         String inventorySql = """
@@ -956,8 +1035,11 @@ public class DatabaseWriter {
         if (!enabled) return;
 
         String update = """
-            UPDATE inventory SET quantity = ?
-            WHERE inventory_id = ?
+            UPDATE inventory SET quantity = ?,
+                status = CASE WHEN ? = 'WASTED' AND ? = 0
+                    THEN CASE WHEN expiry_date < ? THEN 'Expired' ELSE 'Discarded' END ELSE status END,
+                waste_date = CASE WHEN ? = 'WASTED' AND ? = 0 THEN ? ELSE waste_date END
+            WHERE inventory_id = ? AND quantity = ?
             """;
 
         String history = """
@@ -975,7 +1057,15 @@ public class DatabaseWriter {
                 PreparedStatement b = conn.prepareStatement(history)) {
 
                 a.setInt(1, quantity);
-                a.setInt(2, id);
+                a.setString(2, record.getChangeType().name());
+                a.setInt(3, quantity);
+                java.time.LocalDate day = record.getOccurredAt().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                a.setObject(4, day);
+                a.setString(5, record.getChangeType().name());
+                a.setInt(6, quantity);
+                a.setObject(7, day);
+                a.setInt(8, id);
+                a.setInt(9, quantity - record.getQuantityChange());
 
                 if (a.executeUpdate() != 1) {
                     throw new SQLException("Inventory not found");
@@ -1041,7 +1131,7 @@ public class DatabaseWriter {
             UPDATE inventory
             SET quantity = quantity - ?
             WHERE inventory_id = ?
-            AND quantity >= ?
+            AND quantity >= ? AND status = 'Available' AND (expiry_date IS NULL OR expiry_date >= CURRENT_DATE)
             """;
 
         String historySql = """
@@ -1120,8 +1210,8 @@ public class DatabaseWriter {
 
         String distributionSql = """
             INSERT INTO distributions
-            (distribution_id, request_id, distribution_date, pickup_status)
-            VALUES (?, ?, ?, 'SCHEDULED')
+            (distribution_id, request_id, distribution_date, pickup_time, pickup_status)
+            VALUES (?, ?, ?, ?, 'SCHEDULED')
             """;
 
         try (Connection conn = DatabaseConnection.getConnection()) {
