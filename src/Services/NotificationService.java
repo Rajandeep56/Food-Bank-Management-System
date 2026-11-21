@@ -35,6 +35,7 @@ public class NotificationService {
     // stops the same item being alerted twice
     private final Set<Integer> alertedInventoryIds = new HashSet<>();
     private final Map<String, LocalDate> lastStockAlert = new HashMap<>();
+    private String emailMode = System.getenv().getOrDefault("EMAIL_MODE", "SIMULATION");
 
     public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
                                DistributionRepository distributionRepository,
@@ -132,13 +133,17 @@ public class NotificationService {
         notificationRepository.save(notification);
         System.out.println("[EMAIL to " + to.getEmail() + "] " + type + ": " + message);
         try {
-            emailService.sendEmail(to.getEmail(), type.name(), message);
+            if (emailMode.equalsIgnoreCase("DEMO")) {
+                emailService.sendEmail(System.getenv("EMAIL_TEST_TO"), type.name(), message);
+            } else if (emailMode.equalsIgnoreCase("LIVE")) {
+                emailService.sendEmail(to.getEmail(), type.name(), message);
+            } else {
+                System.out.println("[SIMULATED EMAIL to " + to.getEmail() + "] " + type + ": " + message );
+            }
 
-            dbWriter.markNotificationSent(
-                notification.getNotificationId()
-            );
+            dbWriter.markNotificationSent(notification.getNotificationId());
             notification.markSent();
-         } catch (Exception e) {
+        } catch (Exception e) {
             System.out.println("Email failed: " + e.getMessage());
         }
     }
