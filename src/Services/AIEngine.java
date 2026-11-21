@@ -1,88 +1,81 @@
 package Services;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
+
 import Repository.InventoryRepository;
 import model.InventoryItem;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.time.*;
-
 public class AIEngine {
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ZoneId timezone = ZoneId.of(
+        System.getenv().getOrDefault("AI_TIMEZONE", "America/Vancouver"));
+    private Timer timer;
+    private LocalDate lastRunDate;
 
-    public void runDailyChecks(InventoryService inventoryService, InventoryRepository inventoryRepository, NotificationService notificationService, DecliningStockDetector detector ) {
+    public void runDailyChecks(InventoryService inventoryService, InventoryRepository inventory,
+            NotificationService notifications, DecliningStockDetector detector) {
+        LocalDateTime now = LocalDateTime.now(timezone);
+        LocalDate today = now.toLocalDate();
 
-        LocalDate today = LocalDate.now();
-
+        notifications.retryPending();
         inventoryService.processExpiredInventory(today);
+        notifications.checkInventoryAtRisk(today);
+        notifications.checkMissedPickups(today);
+        notifications.checkDelayedPickups(now);
 
-        notificationService.checkInventoryAtRisk(today);
-
-        notificationService.checkMissedPickups(today);
-
-        Set<String> checked = new HashSet<>();
-
-        for (InventoryItem item :
-                inventoryRepository.getAllInventoryItems()) {
-
-            String key = item.getCategoryId()
-                + " - " + item.getUnit();
-
-            if (checked.add(key)) {
-
-                notificationService.checkStockDecline(
-                    item.getCategoryId(),
-                    item.getUnit(),
-                    today,
-                    detector
-                );
+        Set<String> checkedCategories = new HashSet<>();
+        for (InventoryItem item : inventory.getAllInventoryItems()) {
+            String categoryAndUnit = item.getCategoryId() + " - " + item.getUnit();
+            if (checkedCategories.add(categoryAndUnit)) {
+                notifications.checkStockDecline(item.getCategoryId(), item.getUnit(), today, detector);
             }
         }
-        notificationService.checkDelayedPickups(LocalDateTime.now());
         System.out.println("Daily AI checks completed.");
     }
 
-    public void startScheduler(InventoryService inventoryService, InventoryRepository inventoryRepository, NotificationService notificationService, DecliningStockDetector detector) {
-
-        ZonedDateTime now = ZonedDateTime.now();
-
-        ZonedDateTime nextRun = now.toLocalDate()
-            .atTime(6, 0)
-            .atZone(now.getZone());
-
-        if (!nextRun.isAfter(now)) {
-            nextRun = nextRun.plusDays(1);
+    public synchronized void startScheduler(InventoryService inventoryService, InventoryRepository inventory,
+            NotificationService notifications, DecliningStockDetector detector) {
+        if (timer != null) {
+            return;
         }
 
-        long delay = Duration.between(now, nextRun).toMillis();
+        // If today's 6 AM has passed, start with tomorrow's checks.
+        LocalDateTime now = LocalDateTime.now(timezone);
+        if (now.getHour() >= 6) {
+            lastRunDate = now.toLocalDate();
+        }
 
-        scheduler.schedule(() -> {
-            try {
-                runDailyChecks(
-                    inventoryService,
-                    inventoryRepository,
-                    notificationService,
-                    detector
-                );
-            } catch (Exception e) {
-                System.err.println(e.getMessage());
-            } finally {
-                if (!scheduler.isShutdown()) {
-                    startScheduler(
-                        inventoryService,
-                        inventoryRepository,
-                        notificationService,
-                        detector
-                    );
+        timer = new Timer("Food bank daily checks");
+        timer.scheduleAtFixedRate(new TimerTask() {
+            public void run() {
+                try {
+                    checkSchedule(LocalDateTime.now(timezone), inventoryService, inventory, notifications, detector);
+                } catch (RuntimeException e) {
+                    System.err.println("Daily AI checks failed; check configuration and pending notifications");
                 }
             }
-        }, delay, TimeUnit.MILLISECONDS);
+        }, 0, 60_000); // Check the time once a minute.
     }
 
-    public void stopScheduler() {
-        scheduler.shutdownNow();
+    public synchronized void checkSchedule(LocalDateTime now, InventoryService inventoryService,
+            InventoryRepository inventory, NotificationService notifications, DecliningStockDetector detector) {
+        LocalDate today = now.toLocalDate();
+        if (now.getHour() < 6 || today.equals(lastRunDate)) {
+            return;
+        }
+        lastRunDate = today;
+        runDailyChecks(inventoryService, inventory, notifications, detector);
+    }
+
+    public synchronized void stopScheduler() {
+        if (timer != null) {
+            timer.cancel();
+            timer = null;
+        }
     }
 }
