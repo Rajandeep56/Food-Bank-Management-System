@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS notifications (
             'MISSED_PICKUP',
             'DELAYED_PICKUP'
         )),
-    reason VARCHAR(50),
+    reason VARCHAR(255),
     category_id INTEGER
         REFERENCES categories(category_id) ON DELETE RESTRICT,
     message TEXT NOT NULL,
@@ -214,5 +214,11 @@ CREATE TABLE IF NOT EXISTS inventory_history (
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+
+CREATE INDEX IF NOT EXISTS idx_donations_date_category ON donations (donation_date, category_id);
+CREATE INDEX IF NOT EXISTS idx_distributions_date_status ON distributions (distribution_date, pickup_status);
+CREATE INDEX IF NOT EXISTS idx_inventory_expiry_category ON inventory (expiry_date, category_id);
+CREATE INDEX IF NOT EXISTS idx_users_name ON users (LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_inventory_history_time ON inventory_history (occurred_at, category_id);
 
 COMMIT;

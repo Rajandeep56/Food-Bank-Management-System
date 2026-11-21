@@ -27,6 +27,10 @@ public class FoodHamperRequestRepository {
         return hamperRequest;
     }
 
+    public List<FoodHamperRequest> findAll() {
+        return new ArrayList<>(hamperRequests.values());
+    }
+
     public List<FoodHamperRequest> findByRecipientId(int recipientId) {
         List<FoodHamperRequest> requests = new ArrayList<>();
         for (FoodHamperRequest request : hamperRequests.values()) {
