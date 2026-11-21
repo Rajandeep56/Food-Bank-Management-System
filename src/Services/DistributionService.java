@@ -11,6 +11,7 @@ import Repository.DistributionRepository;
 import Repository.FoodHamperRequestRepository;
 import Repository.InventoryRepository;
 import Repository.UserRepository;
+import Repository.VolunteerShiftRepository;
 import common.HamperRequestStatus;
 import common.InventoryChangeType;
 import common.PickupStatus;
@@ -20,12 +21,14 @@ import model.DistributionItem;
 import model.FoodHamperRequest;
 import model.InventoryItem;
 import model.User;
+import model.VolunteerShift;
 
 public class DistributionService {
     private final DistributionRepository distributionRepository;
     private final FoodHamperRequestRepository hamperRequestRepository;
     private final InventoryService inventoryService;
     private final InventoryRepository inventoryRepository;
+    private VolunteerShiftRepository shiftRepository;
     private DatabaseWriter dbWriter = new DatabaseWriter();
     
     public DistributionService(DistributionRepository distributionRepository, FoodHamperRequestRepository hamperRequestRepository, InventoryService inventoryService, InventoryRepository inventoryRepository) {
@@ -102,12 +105,9 @@ public class DistributionService {
                 "Cannot fulfill a cancelled hamper request"
             );
         }
-        dbWriter.fulfillDistribution(
-            distributionId,
-            distribution.getRequestId(),
-            authService.getCurrentUserId(),
-            distribution.getItems()
-        );
+        validateShift(authService.getCurrentUserId(), distribution.getDistributionDate(), distribution.getPickupTime());
+        dbWriter.fulfillDistribution(distributionId, distribution.getRequestId(), authService.getCurrentUserId(), distribution.getItems());
+
         // adjust stock
         for(DistributionItem item: distribution.getItems()) {
             int inventoryId = item.getInventoryId();
@@ -173,6 +173,19 @@ public class DistributionService {
         }
 
         distribution.setPickupTime(pickupTime);
+    }
+
+    public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
+        this.shiftRepository = shiftRepository;
+    }
+
+    private void validateShift(int volunteerId, LocalDate date, LocalTime time) {
+        for (VolunteerShift shift : shiftRepository.findByVolunteerId(volunteerId)) {
+            if (shift.getShiftDate().equals(date) && !time.isBefore(shift.getStartTime()) && time.isBefore(shift.getEndTime())) {
+                return;
+            }
+        }
+        throw new SecurityException("No assigned shift");
     }
 
     public List<Distribution> searchDistributions(String recipientName, LocalDate startDate, LocalDate endDate, UserRepository userRepository, AuthService authService  ) {

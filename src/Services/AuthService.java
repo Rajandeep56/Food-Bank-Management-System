@@ -36,22 +36,36 @@ public class AuthService {
         if (user == null) {
             throw new IllegalArgumentException("User cannot be null");
         }
-
-        if (!(user instanceof Donor) &&
-            !(user instanceof Recipient)) {
-
+        if (!(user instanceof Donor) && !(user instanceof Recipient)) {
             throw new SecurityException(
-                "Only donors and recipients can register"
+                "Only donors and recipients can self-register"
             );
         }
-        dbWriter.addUser(
-            user.getUserId(),
-            user.getName(),
-            user.getEmail(),
-            user.getPhone(),
-            user.getPasswordHash(),
-            "Donor"
-        );
+
+        if (user instanceof Recipient recipient) {
+
+            dbWriter.registerRecipient(
+                recipient.getUserId(),
+                recipient.getName(),
+                recipient.getEmail(),
+                recipient.getPhone(),
+                recipient.getPasswordHash(),
+                recipient.getHouseholdSize(),
+                recipient.getDietaryRestrictions(),
+                recipient.getEmergencyContact()
+            );
+
+        } else if (user instanceof Donor) {
+
+            dbWriter.addUser(
+                user.getUserId(),
+                user.getName(),
+                user.getEmail(),
+                user.getPhone(),
+                user.getPasswordHash(),
+                "Donor"
+            );
+        }
         userRepository.save(user);
     }
     public void logout() {
@@ -70,16 +84,47 @@ public class AuthService {
         return currentUser != null && currentUser.isActive();
     }
 
-    public void updateProfile(String name, String phone) {
+    public void updateProfile(
+        String name, String email, String phone) {
 
         User user = getCurrentUser();
+
+        if (user == null) {
+            throw new SecurityException("Login required");
+        }
+
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Name cannot be empty");
         }
 
-        dbWriter.updateUser(user.getUserId(), name, phone);
+        if (email == null ||
+            !email.trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            throw new IllegalArgumentException("Invalid email");
+        }
 
-        user.updateProfile(name, user.getEmail(), phone);
+        if (phone == null || phone.isBlank()) {
+            throw new IllegalArgumentException("Phone cannot be empty");
+        }
+
+        email = email.trim().toLowerCase(java.util.Locale.ROOT);
+        name = name.trim();
+        phone = phone.trim();
+
+        User existingUser = userRepository.findByEmail(email);
+
+        if (existingUser != null &&
+            existingUser.getUserId() != user.getUserId()) {
+
+            throw new IllegalArgumentException(
+                "Email already registered"
+            );
+        }
+
+        dbWriter.updateUser(
+            user.getUserId(), name, email, phone
+        );
+
+        user.updateProfile(name, email, phone);
     }
 
    

@@ -108,20 +108,57 @@ public class DatabaseWriter {
     }
 
     public void updateUser(int id, String name, String phone) {
+
+    if (!enabled) {
+        return;
+    }
+
+    String sql = """
+        UPDATE users
+        SET name = ?, phone = ?
+        WHERE user_id = ?
+        """;
+
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+        stmt.setString(1, name);
+        stmt.setString(2, phone);
+        stmt.setInt(3, id);
+
+        if (stmt.executeUpdate() != 1) {
+            throw new SQLException("User not found");
+        }
+
+    } catch (SQLException e) {
+        throw new RuntimeException(e);
+    }
+}
+
+    public void updateUser(
+            int id, String name, String email, String phone) {
+
         if (!enabled) {
             return;
         }
 
-        String sql = "UPDATE users SET name = ?, phone = ? WHERE user_id = ?";
+        String sql = """
+            UPDATE users
+            SET name = ?, email = ?, phone = ?
+            WHERE user_id = ?
+            """;
 
         try (Connection conn = DatabaseConnection.getConnection();
             PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, name);
-            stmt.setString(2, phone);
-            stmt.setInt(3, id);
+            stmt.setString(2, email);
+            stmt.setString(3, phone);
+            stmt.setInt(4, id);
 
-            stmt.executeUpdate();
+            if (stmt.executeUpdate() != 1) {
+                throw new SQLException("User not found");
+            }
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -1071,8 +1108,7 @@ public class DatabaseWriter {
         }
     }
 
-    public void createHamperRequest(int requestId,
-        int recipientId, LocalDate pickupDate) {
+    public void createHamperRequest(int requestId, int recipientId, LocalDate pickupDate, LocalTime pickupTime) {
 
         if (!enabled) return;
 
@@ -1103,6 +1139,7 @@ public class DatabaseWriter {
                 b.setInt(1, requestId);
                 b.setInt(2, requestId);
                 b.setObject(3, pickupDate);
+                b.setObject(4, pickupTime);
                 b.executeUpdate();
 
                 conn.commit();
@@ -1117,6 +1154,11 @@ public class DatabaseWriter {
         }
     }
 
+    public void createHamperRequest(int requestId, int recipientId, LocalDate pickupDate) {
+
+        createHamperRequest(requestId, recipientId, pickupDate, LocalTime.of(10, 0));
+    }
+    
     public void cancelHamperRequest(int requestId) {
 
         if (!enabled) return;

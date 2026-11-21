@@ -4,6 +4,8 @@ package model;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
+import Repository.UserRepository;
+
 public class VolunteerShift {
 
     private final int shiftId;
@@ -13,6 +15,7 @@ public class VolunteerShift {
     private final LocalTime endTime;
     private final String assignedTask;
     private final int assignedBy;
+    private UserRepository userRepository;
 
     public VolunteerShift(
             int shiftId,
@@ -82,5 +85,8 @@ public class VolunteerShift {
 
     public int getAssignedBy() {
         return assignedBy;
+    }
+    public void setUserRepository(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 }

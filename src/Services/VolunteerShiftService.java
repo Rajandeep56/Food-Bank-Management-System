@@ -17,11 +17,13 @@ import database.DatabaseWriter;
 import model.Notification;
 import model.User;
 import model.VolunteerShift;
+import Repository.UserRepository;
 
 public class VolunteerShiftService {
 
-    private final VolunteerShiftRepository shiftRepository;
+    private VolunteerShiftRepository shiftRepository;
     private DatabaseWriter dbWriter = new DatabaseWriter();
+    private UserRepository userRepository;
 
     public VolunteerShiftService(
             VolunteerShiftRepository shiftRepository) {
@@ -33,6 +35,10 @@ public class VolunteerShiftService {
         }
 
         this.shiftRepository = shiftRepository;
+    }
+
+    public void setUserRepository(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     public void assignShift(VolunteerShift newShift, AuthService authService) {
@@ -131,5 +137,9 @@ public class VolunteerShiftService {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
+        this.shiftRepository = shiftRepository;
     }
 }

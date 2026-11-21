@@ -1,25 +1,34 @@
 package database;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 
 public class DatabaseConnection {
 
-    private static final String URL =
-        "jdbc:postgresql://localhost:5432/foodbank?currentSchema=food_bank";
-
-    private static final String USER = "foodbank_user";
-
-    private static final String PASSWORD =
-        System.getenv("DB_PASSWORD");
-
     public static Connection getConnection() throws SQLException {
 
-        return DriverManager.getConnection(
-            URL,
-            USER,
-            PASSWORD
+        String url = System.getenv("DB_URL");
+        String user = System.getenv("DB_USER");
+        String password = System.getenv("DB_PASSWORD");
+
+        System.out.println("Database URL: " + url);
+        System.out.println("Database User: " + user);
+
+        if (url == null || !url.startsWith("jdbc:postgresql://")) {
+            throw new SQLException("Invalid database URL");
+        }
+
+        if (user == null || password == null) {
+            throw new SQLException("Missing database credentials");
+        }
+
+        Connection connection = DriverManager.getConnection(
+            url, user, password
         );
+
+        connection.setSchema("food_bank");
+
+        System.out.println("Connected schema: " + connection.getSchema());
+
+        return connection;
     }
 }

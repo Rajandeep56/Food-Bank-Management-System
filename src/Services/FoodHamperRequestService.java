@@ -1,6 +1,7 @@
 package Services;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import Repository.DistributionRepository;
@@ -40,7 +41,7 @@ public class FoodHamperRequestService {
         }
     }
 
-    public FoodHamperRequest requestHamper(int requestId,  AuthService authService, LocalDate pickupDate){
+    public FoodHamperRequest requestHamper(int requestId,  AuthService authService, LocalDate pickupDate, LocalTime pickupTime){
         Recipient recipient = (Recipient) authService.requireRole("Recipient");
         validateRecipient(recipient);
         if(requestId<=0){
@@ -49,10 +50,14 @@ public class FoodHamperRequestService {
         if(pickupDate==null || pickupDate.isBefore(LocalDate.now())){
             throw new IllegalArgumentException("Issue is with pickupdate");
         }
+        if (pickupTime == null) {
+            throw new IllegalArgumentException("Pickup time is required");
+        }
         FoodHamperRequest request = new FoodHamperRequest(requestId, recipient.getUserId());
         request.schedulePickup(pickupDate);
 
         Distribution distribution = new Distribution(requestId, requestId, pickupDate);
+        distribution.setPickupTime(pickupTime);
         dbWriter.createHamperRequest(
             requestId,
             authService.getCurrentUserId(),
@@ -61,6 +66,11 @@ public class FoodHamperRequestService {
         requestRepository.save(request);
         distributionRepository.save(distribution);
         return request;
+    }
+
+    public FoodHamperRequest requestHamper(int requestId, AuthService authService, LocalDate pickupDate) {
+
+        return requestHamper(requestId, authService, pickupDate, LocalTime.of(10, 0));
     }
 
     public void cancelRequest(int requestId,     AuthService authService){

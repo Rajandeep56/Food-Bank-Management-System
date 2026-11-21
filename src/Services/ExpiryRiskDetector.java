@@ -45,8 +45,7 @@ public class ExpiryRiskDetector {
             if (change.getChangeType() != InventoryChangeType.DISTRIBUTED || change.getOccurredAt().isBefore(since)) {
                 continue;
             }
-            InventoryItem item = inventoryRepository.getInventoryItemById(change.getInventoryId());
-            if (item.getCategoryId() == categoryId) {
+            if (change.getCategoryId() == categoryId) {
                 distributed += Math.abs(change.getQuantityChange());
             }
         }

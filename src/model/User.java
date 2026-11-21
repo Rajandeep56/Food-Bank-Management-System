@@ -57,7 +57,9 @@ public abstract class User {
     public String getRole() {
         return role;
     }
-    
+    public String getPasswordHash() {
+        return passwordHash;
+    }
     public Instant getCreatedAt() {
         return createdAt;
     }

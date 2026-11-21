@@ -131,7 +131,7 @@ public class CoordinatorService {
                 "Category name cannot be empty"
             );
         }
-        dbWriter.updateCategory(categoryId, name);
+        dbWriter.updateCategory(categoryId, name.trim());
         categoryRepository.updateCategory(
             categoryId, name.trim()
         );
@@ -193,6 +193,7 @@ public class CoordinatorService {
         }
 
         Volunteer volunteer = (Volunteer) user;
+        dbWriter.updateVolunteer(volunteerId, availability);
 
         volunteer.setAvailability(availability);
     }

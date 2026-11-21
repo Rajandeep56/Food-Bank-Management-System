@@ -97,6 +97,12 @@ public class Main {
             new ExpiryRiskDetector(
                 inventoryRepository, inventoryService
             );
+        
+        NotificationService notificationService = new NotificationService(notificationRepository, userRepository, distributionRepository, hamperRepository, categoryRepository, expiryRiskDetector, decliningStockDetector);
+
+        notificationService.setShiftRepository(shiftRepository);
+        shiftService.setUserRepository(userRepository);
+        distributionService.setShiftRepository(shiftRepository);
 
     }
 }

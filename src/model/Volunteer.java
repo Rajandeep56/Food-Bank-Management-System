@@ -25,4 +25,22 @@ public class Volunteer extends User {
 
         this.availability = availability.trim();
     }
+
+    private void validateAvailability(Volunteer volunteer, VolunteerShift shift) {
+
+        String availability = volunteer.getAvailability();
+        int day = shift.getShiftDate().getDayOfWeek().getValue();
+
+        if ("Weekdays".equalsIgnoreCase(availability) && day >= 6) {
+            throw new IllegalArgumentException(
+                "Volunteer is unavailable on weekends"
+            );
+        }
+
+        if ("Weekends".equalsIgnoreCase(availability) && day <= 5) {
+            throw new IllegalArgumentException(
+                "Volunteer is unavailable on weekdays"
+            );
+        }
+    }
 }

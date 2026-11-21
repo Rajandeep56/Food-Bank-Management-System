@@ -98,6 +98,10 @@ public class DecliningStockDetector {
                         (long) history.getQuantityChange()
                     );
                     break;
+                
+                case MANUAL_ADJUSTMENT:
+                    weeklyStock[week] += history.getQuantityChange();
+                    break;
 
                 default:
                     break;
@@ -114,13 +118,16 @@ public class DecliningStockDetector {
             }
         }
 
+        for (int i = 1; i < weeklyStock.length; i++) {
+            weeklyStock[i] += weeklyStock[i - 1];
+        }
+
         double slope = calculateSlope(weeklyStock);
 
         double averageOutflow = totalDistributed / 8.0;
 
         double projectedStock = currentStock + 2 * slope;
 
-        return slope < 0 &&
-               projectedStock < 2 * averageOutflow;
+        return slope < 0 && projectedStock < 2 * averageOutflow;
     }
 }
