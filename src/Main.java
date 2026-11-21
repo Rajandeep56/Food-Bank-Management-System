@@ -103,6 +103,14 @@ public class Main {
         notificationService.setShiftRepository(shiftRepository);
         shiftService.setUserRepository(userRepository);
         distributionService.setShiftRepository(shiftRepository);
+        
+        AIEngine aiEngine = new AIEngine();
 
+        aiEngine.startScheduler(
+            inventoryService,
+            inventoryRepository,
+            notificationService,
+            decliningStockDetector
+        );
     }
 }

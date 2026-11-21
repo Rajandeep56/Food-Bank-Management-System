@@ -30,6 +30,7 @@ public class NotificationService {
     private final ExpiryRiskDetector expiryRiskDetector;
     private VolunteerShiftRepository shiftRepository;
     private DatabaseWriter dbWriter = new DatabaseWriter();
+    private EmailService emailService = new EmailService();
 
     // stops the same item being alerted twice
     private final Set<Integer> alertedInventoryIds = new HashSet<>();
@@ -130,10 +131,16 @@ public class NotificationService {
         );
         notificationRepository.save(notification);
         System.out.println("[EMAIL to " + to.getEmail() + "] " + type + ": " + message);
-        dbWriter.markNotificationSent(
-            notification.getNotificationId()
-        );
-        notification.markSent();
+        try {
+            emailService.sendEmail(to.getEmail(), type.name(), message);
+
+            dbWriter.markNotificationSent(
+                notification.getNotificationId()
+            );
+            notification.markSent();
+         } catch (Exception e) {
+            System.out.println("Email failed: " + e.getMessage());
+        }
     }
 
     public void checkStockDecline( int categoryId,  String unit,  LocalDate today,  DecliningStockDetector detector   ) {
