@@ -39,29 +39,33 @@ public class ExpiryRiskDetector {
 
     // step 1: average units distributed per day for one category
     public double dailyDistributionRate(int categoryId) {
-        Instant since = Instant.now().minus(Duration.ofDays(HISTORY_DAYS));
-        int distributed = 0;
+        return dailyDistributionRate(categoryId, null, LocalDate.now());
+    }
+
+    public double dailyDistributionRate(int categoryId, String unit, LocalDate today) {
+        java.time.ZoneId zone = java.time.ZoneId.systemDefault();
+        Instant until = today.plusDays(1).atStartOfDay(zone).toInstant();
+        Instant since = today.minusDays(HISTORY_DAYS - 1).atStartOfDay(zone).toInstant();
+        long distributed = 0;
         for (InventoryHistory change : inventoryService.getHistory()) {
-            if (change.getChangeType() != InventoryChangeType.DISTRIBUTED || change.getOccurredAt().isBefore(since)) {
-                continue;
-            }
-            if (change.getCategoryId() == categoryId) {
-                distributed += Math.abs(change.getQuantityChange());
-            }
+            if (change.getChangeType() != InventoryChangeType.DISTRIBUTED
+                    || change.getOccurredAt().isBefore(since) || !change.getOccurredAt().isBefore(until)) continue;
+            if (change.getCategoryId() == categoryId && (unit == null || unit.equals(change.getUnit())))
+                distributed += Math.abs((long) change.getQuantityChange());
         }
         return (double) distributed / HISTORY_DAYS;
     }
 
     // steps 2-4: is this item at risk?
     public boolean isAtRisk(InventoryItem item, LocalDate today) {
-        if (item.getExpiryDate() == null || item.getQuantity() <= 0 || item.isExpired(today)) {
+        if (!item.isAvailable() || item.getExpiryDate() == null || item.getQuantity() <= 0 || item.isExpired(today)) {
             return false;
         }
         long daysLeft = ChronoUnit.DAYS.between(today, item.getExpiryDate());
         if (daysLeft <= URGENT_DAYS) {
             return true;
         }
-        double perDay = dailyDistributionRate(item.getCategoryId());
+        double perDay = dailyDistributionRate(item.getCategoryId(), item.getUnit(), today);
         if (perDay == 0) {
             return item.isAtRisk(today); // no history yet: expires within 7 days
         }
@@ -87,7 +91,7 @@ public class ExpiryRiskDetector {
     // plain-English reason, used in the alert email
     public String explain(InventoryItem item, LocalDate today) {
         long daysLeft = ChronoUnit.DAYS.between(today, item.getExpiryDate());
-        double perDay = dailyDistributionRate(item.getCategoryId());
+        double perDay = dailyDistributionRate(item.getCategoryId(), item.getUnit(), today);
         if (daysLeft <= URGENT_DAYS) {
             return "expires in " + daysLeft + " day(s)";
         }

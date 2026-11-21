@@ -28,8 +28,11 @@ public class DecliningStockDetector {
     private double calculateSlope(double[] quantities) {
 
         double meanX = 3.5;
-        double meanY = Arrays.stream(quantities)
-            .average().orElse(0);
+        double total = 0;
+        for (double quantity : quantities) {
+            total += quantity;
+        }
+        double meanY = total / quantities.length;
 
         double numerator = 0;
         double denominator = 0;
@@ -44,7 +47,26 @@ public class DecliningStockDetector {
         return numerator / denominator;
     }
 
-    public boolean isDeclining(
+    private static class StockTrend {
+        double currentStock;
+        double slope;
+        double projectedStock;
+        double averageOutflow;
+    }
+
+    public String explain(int categoryId, String unit, LocalDate today) {
+        StockTrend trend = calculateTrend(categoryId, unit, today);
+        return String.format(Locale.ROOT,
+            "Current stock %.1f; weekly slope %.2f; projected stock %.1f",
+            trend.currentStock, trend.slope, trend.projectedStock);
+    }
+
+    public boolean isDeclining(int categoryId, String unit, LocalDate today) {
+        StockTrend trend = calculateTrend(categoryId, unit, today);
+        return trend.slope < 0 && trend.projectedStock < 2 * trend.averageOutflow;
+    }
+
+    private StockTrend calculateTrend(
         int categoryId,
         String unit,
         LocalDate today
@@ -112,14 +134,10 @@ public class DecliningStockDetector {
                 inventoryRepository.getAllInventoryItems()) {
 
             if (item.getCategoryId() == categoryId &&
-                unit.equals(item.getUnit())) {
+                unit.equals(item.getUnit()) && item.isAvailable() && !item.isExpired(today)) {
 
                 currentStock += item.getQuantity();
             }
-        }
-
-        for (int i = 1; i < weeklyStock.length; i++) {
-            weeklyStock[i] += weeklyStock[i - 1];
         }
 
         double slope = calculateSlope(weeklyStock);
@@ -128,6 +146,11 @@ public class DecliningStockDetector {
 
         double projectedStock = currentStock + 2 * slope;
 
-        return slope < 0 && projectedStock < 2 * averageOutflow;
+        StockTrend trend = new StockTrend();
+        trend.currentStock = currentStock;
+        trend.slope = slope;
+        trend.projectedStock = projectedStock;
+        trend.averageOutflow = averageOutflow;
+        return trend;
     }
 }

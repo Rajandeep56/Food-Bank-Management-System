@@ -2,24 +2,14 @@ package Services;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
-
-import Repository.CategoryRepository;
-import Repository.DistributionRepository;
-import Repository.FoodHamperRequestRepository;
-import Repository.NotificationRepository;
-import Repository.UserRepository;
-import Repository.VolunteerShiftRepository;
+import Repository.*;
 import common.NotificationType;
 import common.PickupStatus;
 import database.DatabaseWriter;
-import model.Distribution;
-import model.FoodHamperRequest;
-import model.InventoryItem;
-import model.Notification;
-import model.User;
-import model.VolunteerShift;
-
+import database.DatabaseConnection;
+import model.*;
 
 public class NotificationService {
     private final NotificationRepository notificationRepository;
@@ -28,185 +18,201 @@ public class NotificationService {
     private final FoodHamperRequestRepository hamperRequestRepository;
     private final CategoryRepository categoryRepository;
     private final ExpiryRiskDetector expiryRiskDetector;
-    private VolunteerShiftRepository shiftRepository;
-    private DatabaseWriter dbWriter = new DatabaseWriter();
-    private EmailService emailService = new EmailService();
+    private final DatabaseWriter dbWriter = new DatabaseWriter();
+    private final EmailService emailService;
+    private final String emailMode;
+    private final String coordinatorEmail;
 
-    // stops the same item being alerted twice
-    private final Set<Integer> alertedInventoryIds = new HashSet<>();
-    private final Map<String, LocalDate> lastStockAlert = new HashMap<>();
-    private String emailMode = System.getenv().getOrDefault("EMAIL_MODE", "SIMULATION");
+    public NotificationService(NotificationRepository notifications, UserRepository users,
+            DistributionRepository distributions, FoodHamperRequestRepository requests,
+            CategoryRepository categories, ExpiryRiskDetector expiry, DecliningStockDetector stock) {
+        this(notifications, users, distributions, requests, categories, expiry, stock,
+            new EmailService(), System.getenv().getOrDefault("EMAIL_MODE", "SIMULATION"),
+            System.getenv("COORDINATOR_EMAIL"));
+    }
 
-    public NotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
-                               DistributionRepository distributionRepository,
-                               FoodHamperRequestRepository hamperRequestRepository,
-                               CategoryRepository categoryRepository, ExpiryRiskDetector expiryRiskDetector, DecliningStockDetector decliningStockDetector) {
-        if (notificationRepository == null || userRepository == null || distributionRepository == null
-                || hamperRequestRepository == null || categoryRepository == null || expiryRiskDetector == null) {
+    // Explicit delivery dependency makes provider failure testable without sending email.
+    public NotificationService(NotificationRepository notifications, UserRepository users,
+            DistributionRepository distributions, FoodHamperRequestRepository requests,
+            CategoryRepository categories, ExpiryRiskDetector expiry, DecliningStockDetector stock,
+            EmailService emailService, String mode, String coordinatorEmail) {
+        if (notifications == null || users == null || distributions == null || requests == null
+                || categories == null || expiry == null || stock == null || emailService == null) {
             throw new IllegalArgumentException("Dependencies cannot be null");
         }
-        this.notificationRepository = notificationRepository;
-        this.userRepository = userRepository;
-        this.distributionRepository = distributionRepository;
-        this.hamperRequestRepository = hamperRequestRepository;
-        this.categoryRepository = categoryRepository;
-        this.expiryRiskDetector = expiryRiskDetector;
+        this.notificationRepository = notifications;
+        this.userRepository = users;
+        this.distributionRepository = distributions;
+        this.hamperRequestRepository = requests;
+        this.categoryRepository = categories;
+        this.expiryRiskDetector = expiry;
+        this.emailService = emailService;
+        if (mode == null) {
+            throw new IllegalArgumentException("Email mode is required");
+        }
+        this.emailMode = mode.toUpperCase(Locale.ROOT);
+        if (!emailMode.equals("DEMO") && !emailMode.equals("SIMULATION") && !emailMode.equals("LIVE")) {
+            throw new IllegalArgumentException("EMAIL_MODE must be DEMO, SIMULATION or LIVE");
+        }
+        this.coordinatorEmail = coordinatorEmail;
     }
 
-    // missed or delayed pickup -> alert every coordinator
-    public void markPickupStatus(int distributionId, PickupStatus newStatus) {
+    // Kept for existing callers. Inventory alerts belong to coordinators, not shifts.
+    public void setShiftRepository(VolunteerShiftRepository shifts) {
+        Objects.requireNonNull(shifts, "Shift repository cannot be null");
+    }
+
+    public synchronized void markPickupStatus(int distributionId, PickupStatus status) {
+        if (status != PickupStatus.MISSED && status != PickupStatus.DELAYED) {
+            throw new IllegalArgumentException("Use DistributionService to fulfill pickups");
+        }
         Distribution distribution = distributionRepository.findById(distributionId);
-        if (distribution == null) {
-            throw new IllegalArgumentException(
-                "Distribution not found"
-            );
-        }
-        if (distribution.getPickupStatus() == newStatus) {
-            return;
-        }
-        dbWriter.updatePickupStatus(distributionId, newStatus.name());
-        distribution.markPickupStatus(newStatus);
-
-        if (newStatus == PickupStatus.MISSED || newStatus == PickupStatus.DELAYED) {
-            FoodHamperRequest request = hamperRequestRepository.findById(distribution.getRequestId());
-            User recipient = userRepository.findById(request.getRecipientId());
-            NotificationType type = newStatus == PickupStatus.MISSED
-                    ? NotificationType.MISSED_PICKUP : NotificationType.DELAYED_PICKUP;
-            String message = "Pickup " + newStatus + " for recipient " + recipient.getName()
-                    + " (phone " + recipient.getPhone() + "), distribution #" + distributionId
-                    + " on " + distribution.getDistributionDate() + ". Please follow up.";
-            for (User coordinator : userRepository.findByRole("Coordinator")) {
-                send(type, coordinator, message);
+        PickupStatus current = distribution.getPickupStatus();
+        if (current != status) {
+            boolean scheduled = current == PickupStatus.SCHEDULED;
+            boolean delayedToMissed = current == PickupStatus.DELAYED && status == PickupStatus.MISSED;
+            if (!scheduled && !delayedToMissed) {
+                throw new IllegalStateException("Invalid pickup status transition");
             }
+            dbWriter.updatePickupStatus(distributionId, status.name());
+            distribution.markPickupStatus(status);
         }
+        FoodHamperRequest request = hamperRequestRepository.findById(distribution.getRequestId());
+        User recipient = userRepository.findById(request.getRecipientId());
+        String message = "Pickup " + status + " for " + recipient.getName() + ", distribution #"
+            + distributionId + " on " + distribution.getDistributionDate() + " at "
+            + distribution.getPickupTime() + ". Please follow up.";
+        NotificationType type = NotificationType.DELAYED_PICKUP;
+        if (status == PickupStatus.MISSED) {
+            type = NotificationType.MISSED_PICKUP;
+        }
+        notifyCoordinators(type, status + ":" + distributionId, message, LocalDate.now(), false);
     }
 
-    public void setShiftRepository(VolunteerShiftRepository shiftRepository) {
-        this.shiftRepository = shiftRepository;
-    }
-
-    // daily check: items the AI flags go to coordinators and volunteers
-    public List<InventoryItem> checkInventoryAtRisk(LocalDate today) {
-        List<InventoryItem> atRisk = expiryRiskDetector.findAtRiskItems(today);
-        for (InventoryItem item : atRisk) {
-            if (alertedInventoryIds.contains(item.getInventoryId())) {
-                continue;
-            }
+    public synchronized List<InventoryItem> checkInventoryAtRisk(LocalDate today) {
+        List<InventoryItem> items = expiryRiskDetector.findAtRiskItems(today);
+        for (InventoryItem item : items) {
             String category = categoryRepository.findById(item.getCategoryId()).getName();
-            String message = item.getItemName() + " (" + category + ", expires " + item.getExpiryDate() + "): "
-                    + expiryRiskDetector.explain(item, today)
-                    + ". Please give it priority in the next distribution.";
-            for (User coordinator : userRepository.findByRole("Coordinator")) {
-                send(NotificationType.INVENTORY_AT_RISK, coordinator, message);
-            }
-            
-            for (VolunteerShift shift : shiftRepository.findAll()) {
-                if (shift.getShiftDate().equals(today)) {
-                    User volunteer = userRepository.findById(shift.getVolunteerId());
-
-                    if (volunteer != null) {
-                        send(NotificationType.INVENTORY_AT_RISK, volunteer, message);
-                    }
-                }
-            }
-
-            alertedInventoryIds.add(item.getInventoryId());
+            String message = item.getItemName() + " (" + category + ", expires " + item.getExpiryDate()
+                + "): " + expiryRiskDetector.explain(item, today) + ". Prioritize the next distribution.";
+            notifyCoordinators(NotificationType.INVENTORY_AT_RISK,
+                "Expiry:" + item.getInventoryId() + ":" + item.getExpiryDate(), message, today, false);
         }
-        return atRisk;
+        return items;
     }
 
     public List<Notification> getAllNotifications() {
         return notificationRepository.findAll();
     }
 
-    // email is printed to the console until the web app has real email
-    private void send(NotificationType type, User to, String message) {
-        Notification notification = new Notification(notificationRepository.nextId(), type,
-                to.getUserId(), to.getEmail(), message);
-        dbWriter.addNotification(
-            notification.getNotificationId(),
-            notification.getRecipientUserId(),
-            notification.getRecipientEmail(),
-            notification.getType().name(),
-            notification.getMessage()
-        );
-        notificationRepository.save(notification);
-        System.out.println("[EMAIL to " + to.getEmail() + "] " + type + ": " + message);
-        try {
-            if (emailMode.equalsIgnoreCase("DEMO")) {
-                emailService.sendEmail(System.getenv("EMAIL_TEST_TO"), type.name(), message);
-            } else if (emailMode.equalsIgnoreCase("LIVE")) {
-                emailService.sendEmail(to.getEmail(), type.name(), message);
-            } else {
-                System.out.println("[SIMULATED EMAIL to " + to.getEmail() + "] " + type + ": " + message );
+    private void notifyCoordinators(NotificationType type, String reason, String message, LocalDate today, boolean weekly) {
+        List<User> coordinators = userRepository.findByRole("Coordinator");
+        if (coordinators.isEmpty()) {
+            throw new IllegalStateException("No active coordinator configured for alerts");
+        }
+        // A shared address is sent once, linked to the first active coordinator.
+        coordinators.sort(Comparator.comparingInt(User::getUserId));
+        boolean sharedInbox = coordinatorEmail != null && !coordinatorEmail.isBlank();
+        for (User coordinator : coordinators) {
+            String to = coordinator.getEmail();
+            if (sharedInbox) {
+                to = coordinatorEmail.trim();
             }
-
-            dbWriter.markNotificationSent(notification.getNotificationId());
-            notification.markSent();
-        } catch (Exception e) {
-            System.out.println("Email failed: " + e.getMessage());
+            send(type, coordinator.getUserId(), to, reason, message, today, weekly);
+            if (sharedInbox) {
+                break;
+            }
         }
     }
 
-    public void checkStockDecline( int categoryId,  String unit,  LocalDate today,  DecliningStockDetector detector   ) {
-            String key = categoryId + " - " + unit;
+    private void send(NotificationType type, int userId, String to, String reason,
+            String message, LocalDate today, boolean weekly) {
+        EmailService.validateRecipient(to);
+        String key = emailMode + ":" + reason;
+        Notification notification = findExistingNotification(key, to, today, weekly);
+        if (notification != null && notification.isSent()) {
+            return;
+        }
+        if (notification == null) {
+            notification = new Notification(notificationRepository.nextId(), type, userId, to, message);
+            notification.setReason(key);
+            dbWriter.addNotification(notification);
+            notificationRepository.save(notification);
+        }
+        deliver(notification);
+    }
 
-            LocalDate lastAlert = lastStockAlert.get(key);
-
-            if (lastAlert != null &&
-                today.isBefore(lastAlert.plusDays(7))) {
-                return;
+    private Notification findExistingNotification(String key, String to, LocalDate today, boolean weekly) {
+        Notification pending = null;
+        for (Notification existing : notificationRepository.findAll()) {
+            boolean sameAlert = key.equals(existing.getReason());
+            boolean sameRecipient = to.equalsIgnoreCase(existing.getRecipientEmail());
+            if (!sameAlert || !sameRecipient) {
+                continue;
             }
-
-            if (detector.isDeclining(categoryId, unit, today)) {
-
-                String message = "Inventory At-Risk: Stock declining for " + key;
-
-                for (User coordinator : userRepository.findByRole("Coordinator")) {
-
-                    send(NotificationType.INVENTORY_AT_RISK, coordinator, message );
-
-                lastStockAlert.put(key, today);
+            LocalDate sentDate = existing.getCreatedAt().atZone(ZoneId.systemDefault()).toLocalDate();
+            boolean withinLastWeek = !sentDate.isAfter(today) && sentDate.isAfter(today.minusDays(7));
+            if (weekly && !withinLastWeek) {
+                continue;
             }
-         }
+            if (existing.isSent()) {
+                return existing;
+            }
+            pending = existing;
+        }
+        return pending;
+    }
+
+    private void deliver(Notification notification) {
+        try {
+            if (emailMode.equals("LIVE")) {
+                String deliveryKey = DatabaseConnection.getSchemaName() + "/notification/" + notification.getNotificationId();
+                emailService.sendEmail(notification.getRecipientEmail(), notification.getType().name(),
+                    notification.getMessage(), deliveryKey);
+            } else {
+                // DEMO must never call the provider, even when API credentials are present.
+                System.out.println("[" + emailMode + "] " + notification.getType() + " notification #" + notification.getNotificationId());
+            }
+            dbWriter.markNotificationSent(notification.getNotificationId());
+            notification.markSent();
+        } catch (Exception e) {
+            // Keep pending for retry. Provider responses may contain personal information.
+            System.err.println("Notification #" + notification.getNotificationId() + " delivery failed; pending retry");
+        }
+    }
+
+    public synchronized void retryPending() {
+        for (Notification notification : notificationRepository.findAll()) {
+            if (!notification.isSent() && notification.getReason() != null
+                    && notification.getReason().startsWith(emailMode + ":")) {
+                deliver(notification);
+            }
+        }
+    }
+
+    public synchronized void checkStockDecline(int categoryId, String unit, LocalDate today, DecliningStockDetector detector) {
+        if (detector.isDeclining(categoryId, unit, today)) {
+            notifyCoordinators(NotificationType.INVENTORY_AT_RISK, "StockDecline:" + categoryId + ":" + unit,
+                "Inventory At-Risk: declining stock for " + categoryRepository.findById(categoryId).getName()
+                    + " (" + unit + "). " + detector.explain(categoryId, unit, today), today, true);
+        }
     }
 
     public void checkMissedPickups(LocalDate today) {
-
         for (Distribution distribution : distributionRepository.findAll()) {
-
-            if (distribution.getDistributionDate().isBefore(today)) {
-
-                if (distribution.getPickupStatus() == PickupStatus.SCHEDULED || distribution.getPickupStatus() == PickupStatus.DELAYED) {
-
-                    markPickupStatus(distribution.getDistributionId(),PickupStatus.MISSED);
-                }
+            if (distribution.getDistributionDate().isBefore(today)
+                    && (distribution.getPickupStatus() == PickupStatus.SCHEDULED || distribution.getPickupStatus() == PickupStatus.DELAYED)) {
+                markPickupStatus(distribution.getDistributionId(), PickupStatus.MISSED);
             }
         }
     }
 
     public void checkDelayedPickups(LocalDateTime now) {
-
-        for (Distribution distribution :
-                distributionRepository.findAll()) {
-
-            if (distribution.getPickupStatus() != PickupStatus.SCHEDULED ||
-                distribution.getPickupTime() == null ||
-                !distribution.getDistributionDate().equals(now.toLocalDate())) {
-                continue;
-            }
-
-            LocalDateTime deadline = LocalDateTime.of(
-                distribution.getDistributionDate(),
-                distribution.getPickupTime()
-            ).plusHours(2);
-
-            if (now.isAfter(deadline)) {
-
-                markPickupStatus(
-                    distribution.getDistributionId(),
-                    PickupStatus.DELAYED
-                );
+        for (Distribution distribution : distributionRepository.findAll()) {
+            if (distribution.getPickupStatus() == PickupStatus.SCHEDULED && distribution.getPickupTime() != null
+                    && distribution.getDistributionDate().equals(now.toLocalDate())
+                    && now.isAfter(LocalDateTime.of(distribution.getDistributionDate(), distribution.getPickupTime()).plusHours(2))) {
+                markPickupStatus(distribution.getDistributionId(), PickupStatus.DELAYED);
             }
         }
     }
