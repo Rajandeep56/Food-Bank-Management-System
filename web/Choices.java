@@ -82,16 +82,32 @@ public class Choices {
             case "distributions":
             case "pickups":
                 auth.requireRole("Volunteer");
+                int pickupCount = 0;
+                int myPickupCount = 0;
+                int timedPickupCount = 0;
+                int availablePickupCount = 0;
                 for (Distribution distribution : app.distributions.findAll()) {
                     boolean scheduled = distribution.getPickupStatus() == common.PickupStatus.SCHEDULED;
-                    if ((scheduled || type.equals("pickups") && distribution.getPickupStatus() != common.PickupStatus.FULFILLED)
-                            && canChange(app, distribution, current.getUserId())) {
-                        int recipientId = app.requests.findById(distribution.getRequestId()).getRecipientId();
-                        User recipient = app.users.findById(recipientId);
-                        String label = recipient.getName() + " (" + recipient.getEmail() + ") — " + distribution.getDistributionDate()
-                            + " " + distribution.getPickupTime() + " — " + distribution.getPickupStatus() + " (ref " + distribution.getDistributionId() + ")";
-                        add(choices, distribution.getDistributionId(), label, search);
-                    }
+                    if (!scheduled && (!type.equals("pickups") || distribution.getPickupStatus() == common.PickupStatus.FULFILLED)) continue;
+                    pickupCount++;
+                    if (distribution.getVolunteerId() != null && distribution.getVolunteerId() != current.getUserId()) continue;
+                    myPickupCount++;
+                    if (distribution.getPickupTime() == null) continue;
+                    timedPickupCount++;
+                    if (!canChange(app, distribution, current.getUserId())) continue;
+                    availablePickupCount++;
+                    int recipientId = app.requests.findById(distribution.getRequestId()).getRecipientId();
+                    User recipient = app.users.findById(recipientId);
+                    String label = recipient.getName() + " (" + recipient.getEmail() + ") — " + distribution.getDistributionDate()
+                        + " " + distribution.getPickupTime() + " — " + distribution.getPickupStatus() + " (ref " + distribution.getDistributionId() + ")";
+                    add(choices, distribution.getDistributionId(), label, search);
+                }
+                if (choices.length() == 0) {
+                    if (pickupCount == 0) return "<option value=\"\">No scheduled pickups. A recipient must request a hamper first.</option>";
+                    if (myPickupCount == 0) return "<option value=\"\">These pickups are assigned to other volunteers.</option>";
+                    if (timedPickupCount == 0) return "<option value=\"\">The pickups need a pickup time before you can add items.</option>";
+                    if (availablePickupCount == 0) return "<option value=\"\">No shift covers these pickups. A coordinator must assign your shift.</option>";
+                    return "<option value=\"\">No pickups match your search.</option>";
                 }
                 break;
             case "distributionItems":

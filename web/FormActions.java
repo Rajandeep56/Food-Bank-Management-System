@@ -39,7 +39,17 @@ class FormActions {
                 auth.register(newUser);
                 return "Account created. Log in to continue. Recipients need coordinator approval before requesting a hamper.";
             case "profile":
-                auth.updateProfile(required(form, "name"), required(form, "email"), required(form, "phone"));
+                User profile = auth.getCurrentUser();
+                String name = form.getOrDefault("name", "");
+                String profileEmail = form.getOrDefault("email", "");
+                String phone = form.getOrDefault("phone", "");
+                if (name.isBlank() && profileEmail.isBlank() && phone.isBlank()) {
+                    throw new IllegalArgumentException("Enter a name, email, or phone number to update.");
+                }
+                if (name.isBlank()) name = profile.getName();
+                if (profileEmail.isBlank()) profileEmail = profile.getEmail();
+                if (phone.isBlank()) phone = profile.getPhone();
+                auth.updateProfile(name, profileEmail, phone);
                 return "Profile saved.";
             case "password":
                 auth.changePassword(required(form, "oldPassword"), required(form, "newPassword"));

@@ -6,10 +6,11 @@
 </form>
 <pre id="records" aria-live="polite">Loading records...</pre>
 <h3>Update contact details</h3>
+<p>Fill in only the details you want to change. Leave the other fields blank to keep their current values.</p>
 <form onsubmit="sendForm(event)">
     <input type="hidden" name="action" value="profile">
-    <label>Name <input name="name" required></label><label>Email <input type="email" name="email" required></label>
-    <label>Phone <input type="tel" name="phone" required></label><button>Save profile</button>
+    <label>Name <input name="name"></label><label>Email <input type="email" name="email"></label>
+    <label>Phone <input type="tel" name="phone"></label><button>Save profile</button>
   </form>
 <form onsubmit="sendForm(event)">
     <input type="hidden" name="action" value="password">
