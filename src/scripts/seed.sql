@@ -224,4 +224,34 @@ VALUES
  CURRENT_TIMESTAMP - INTERVAL '1 day');
 
 
+SELECT setval(pg_get_serial_sequence('food_bank.users', 'user_id'),
+    COALESCE((SELECT MAX(user_id) FROM food_bank.users), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.categories', 'category_id'),
+    COALESCE((SELECT MAX(category_id) FROM food_bank.categories), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.donations', 'donation_id'),
+    COALESCE((SELECT MAX(donation_id) FROM food_bank.donations), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.inventory', 'inventory_id'),
+    COALESCE((SELECT MAX(inventory_id) FROM food_bank.inventory), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.hamper_requests', 'request_id'),
+    COALESCE((SELECT MAX(request_id) FROM food_bank.hamper_requests), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.distributions', 'distribution_id'),
+    COALESCE((SELECT MAX(distribution_id) FROM food_bank.distributions), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.distribution_items', 'distribution_item_id'),
+    COALESCE((SELECT MAX(distribution_item_id) FROM food_bank.distribution_items), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.volunteer_shifts', 'shift_id'),
+    COALESCE((SELECT MAX(shift_id) FROM food_bank.volunteer_shifts), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.notifications', 'notification_id'),
+    COALESCE((SELECT MAX(notification_id) FROM food_bank.notifications), 0) + 1, false);
+
+SELECT setval(pg_get_serial_sequence('food_bank.inventory_history', 'history_id'),
+    COALESCE((SELECT MAX(history_id) FROM food_bank.inventory_history), 0) + 1, false);
+
 COMMIT;

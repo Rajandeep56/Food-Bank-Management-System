@@ -158,6 +158,7 @@ async function sendForm(event) {
     values.set('csrf', csrf);
     const response = await fetch('/api/action', { method: 'POST', body: values });
     document.getElementById('message').textContent = await response.text();
+    window.scrollTo(0, 0);
     await loadUser();
     if (response.ok) {
       form.reset();
@@ -171,6 +172,7 @@ async function sendForm(event) {
     }
   } catch (error) {
     document.getElementById('message').textContent = error.message || 'Could not connect to Java.';
+    window.scrollTo(0, 0);
   } finally {
     if (button) button.disabled = false;
   }
