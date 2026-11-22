@@ -1,0 +1,33 @@
+<h2>Donations</h2><p data-roles="Donor">A volunteer records donations when you drop them off. Only your own history is shown.</p>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="donations">
+  <label>Item name <input name="item"></label><label data-roles="Volunteer">Donor name <input name="donor"></label><label>From <input type="date" name="from"></label><label>To <input type="date" name="to"></label><div class="choice">
+  <label>Find category <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Category <select name="category" data-options="categories" data-empty="All categories"><option value="">Loading choices...</option></select></label>
+</div>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<div data-roles="Volunteer">
+<form onsubmit="sendForm(event)">
+    <h3>Record a donation and add stock</h3><input type="hidden" name="action" value="recordDonation">
+    <div class="choice">
+  <label>Find donor <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Donor <select name="donorId" data-options="donors" data-empty="Choose donor" required><option value="">Loading choices...</option></select></label>
+</div><label>Item <input name="name" required></label>
+    <div class="choice">
+  <label>Find category <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Category <select name="categoryId" data-options="categories" data-empty="Choose category" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>Quantity <input type="number" name="quantity" min="1" step="1" required></label><label>Unit <input name="unit" required></label>
+    <label>Expiry date (optional) <input type="date" name="expiry"></label><button>Record donation</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Retry a pending donation</h3><input type="hidden" name="action" value="completeDonation">
+    <div class="choice">
+  <label>Find donation <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Donation <select name="donationId" data-options="pendingDonations" data-empty="Choose donation" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>Expiry date (optional) <input type="date" name="expiry"></label><button>Complete donation</button>
+  </form>
+</div>

@@ -1,0 +1,25 @@
+<h2>Volunteer shifts</h2>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="shifts">
+  <label>Volunteer name <input name="name"></label><label>From <input type="date" name="from"></label><label>To <input type="date" name="to"></label>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<div data-roles="Coordinator">
+<form onsubmit="sendForm(event)">
+    <h3>Assign shift</h3><input type="hidden" name="action" value="assignShift">
+    <div class="choice">
+  <label>Find volunteer <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Volunteer <select name="volunteerId" data-options="volunteers" data-empty="Choose volunteer" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>Date <input type="date" name="date" required></label><label>Start <input type="time" name="start" required></label>
+    <label>End <input type="time" name="end" required></label><label>Task <input name="task" required></label><button>Assign shift</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Remove shift</h3><input type="hidden" name="action" value="deleteShift">
+    <div class="choice">
+  <label>Find shift <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Shift <select name="shiftId" data-options="shifts" data-empty="Choose shift" required><option value="">Loading choices...</option></select></label>
+</div><button>Remove shift</button>
+  </form>
+</div>

@@ -1,0 +1,26 @@
+<h2>Categories</h2>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="categories">
+  <label>Category name <input name="name"></label>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<div data-roles="Coordinator">
+<form onsubmit="sendForm(event)">
+    <h3>Add category</h3><input type="hidden" name="action" value="addCategory"><label>Name <input name="name" required></label><button>Add category</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Rename category</h3><input type="hidden" name="action" value="renameCategory">
+    <div class="choice">
+  <label>Find category <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Category <select name="categoryId" data-options="categories" data-empty="Choose category" required><option value="">Loading choices...</option></select></label>
+</div><label>New name <input name="name" required></label><button>Rename category</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Delete unused category</h3><input type="hidden" name="action" value="deleteCategory">
+    <div class="choice">
+  <label>Find category <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Category <select name="categoryId" data-options="categories" data-empty="Choose category" required><option value="">Loading choices...</option></select></label>
+</div><button>Delete category</button>
+  </form>
+</div>

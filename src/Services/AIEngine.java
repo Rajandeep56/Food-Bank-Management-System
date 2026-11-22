@@ -19,23 +19,25 @@ public class AIEngine {
 
     public void runDailyChecks(InventoryService inventoryService, InventoryRepository inventory,
             NotificationService notifications, DecliningStockDetector detector) {
-        LocalDateTime now = LocalDateTime.now(timezone);
-        LocalDate today = now.toLocalDate();
+        synchronized (inventory) {
+            LocalDateTime now = LocalDateTime.now(timezone);
+            LocalDate today = now.toLocalDate();
 
-        notifications.retryPending();
-        inventoryService.processExpiredInventory(today);
-        notifications.checkInventoryAtRisk(today);
-        notifications.checkMissedPickups(today);
-        notifications.checkDelayedPickups(now);
+            notifications.retryPending();
+            inventoryService.processExpiredInventory(today);
+            notifications.checkInventoryAtRisk(today);
+            notifications.checkMissedPickups(today);
+            notifications.checkDelayedPickups(now);
 
-        Set<String> checkedCategories = new HashSet<>();
-        for (InventoryItem item : inventory.getAllInventoryItems()) {
-            String categoryAndUnit = item.getCategoryId() + " - " + item.getUnit();
-            if (checkedCategories.add(categoryAndUnit)) {
-                notifications.checkStockDecline(item.getCategoryId(), item.getUnit(), today, detector);
+            Set<String> checkedCategories = new HashSet<>();
+            for (InventoryItem item : inventory.getAllInventoryItems()) {
+                String categoryAndUnit = item.getCategoryId() + " - " + item.getUnit();
+                if (checkedCategories.add(categoryAndUnit)) {
+                    notifications.checkStockDecline(item.getCategoryId(), item.getUnit(), today, detector);
+                }
             }
+            System.out.println("Daily AI checks completed.");
         }
-        System.out.println("Daily AI checks completed.");
     }
 
     public synchronized void startScheduler(InventoryService inventoryService, InventoryRepository inventory,

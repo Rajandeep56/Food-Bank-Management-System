@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Food Bank Management System</title>
+  <style>
+    body { font: 16px Arial, sans-serif; max-width: 1050px; margin: 0 auto; padding: 20px; color: #222; background: white; }
+    h1 { color: #245b3b; font-size: 26px; }
+    h2 { margin-top: 24px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #ccc; padding-bottom: 12px; margin-bottom: 18px; }
+    nav a { color: #245b3b; padding: 8px 10px; border: 1px solid #ccc; text-decoration: none; }
+    nav a.active { color: white; background: #245b3b; border-color: #245b3b; }
+    nav form { border: 0; padding: 0; margin: 0; }
+    form { border: 1px solid #ccc; padding: 16px; margin: 18px 0; }
+    label { display: block; margin: 12px 0; }
+    input, select, button { font: inherit; padding: 8px; max-width: 100%; box-sizing: border-box; }
+    input, select { display: block; width: 360px; margin-top: 5px; }
+    button { cursor: pointer; margin: 5px 0; }
+    button:disabled { cursor: wait; }
+    .choice { margin: 14px 0; padding-left: 12px; border-left: 2px solid #ddd; }
+    .choice label { margin: 7px 0; }
+    pre { white-space: pre-wrap; border: 1px solid #ccc; padding: 14px; overflow-x: auto; background: #f7f7f7; }
+    #message:not(:empty) { border: 1px solid #888; background: #f5f5f5; padding: 12px; }
+    a { color: #245b3b; }
+    :focus-visible { outline: 2px solid #245b3b; outline-offset: 2px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) { body { padding: 12px; } input, select { width: 100%; } nav a { padding: 7px; } }
+  </style>
+</head>
+<body>
+<header><h1>Food Bank Management System</h1><p id="account"></p></header>
+<nav id="navigation" aria-label="Food bank screens">
+  <a href="#login" data-roles="Guest">Log in</a>
+  <a href="#signup" data-roles="Guest">Sign up</a>
+  <a href="#profile" data-roles="Donor Recipient Volunteer Coordinator" hidden>My profile</a>
+  <a href="#donations" data-roles="Donor Volunteer" hidden>Donations</a>
+  <a href="#requests" data-roles="Recipient" hidden>Hamper requests</a>
+  <a href="#inventory" data-roles="Volunteer" hidden>Inventory</a>
+  <a href="#distributions" data-roles="Recipient Volunteer" hidden>Distributions</a>
+  <a href="#approvals" data-roles="Coordinator" hidden>Recipient approvals</a>
+  <a href="#volunteers" data-roles="Coordinator" hidden>Volunteers</a>
+  <a href="#accounts" data-roles="Coordinator" hidden>Accounts</a>
+  <a href="#shifts" data-roles="Volunteer Coordinator" hidden>Shifts</a>
+  <a href="#categories" data-roles="Coordinator" hidden>Categories</a>
+  <a href="#reports" data-roles="Coordinator" hidden>Reports</a>
+  <form onsubmit="sendForm(event)" data-roles="Donor Recipient Volunteer Coordinator" hidden>
+    <input type="hidden" name="action" value="logout"><button>Log out</button>
+  </form>
+</nav>
+<p id="message" role="status" aria-live="polite"></p>
+<main id="screen" aria-live="polite">Loading...</main>
+
+<script>
+let csrf = '';
+let role = '';
+let currentScreen = '';
+const screens = {
+  Guest: ['login', 'signup'],
+  Donor: ['profile', 'donations'],
+  Recipient: ['profile', 'requests', 'distributions'],
+  Volunteer: ['profile', 'donations', 'inventory', 'distributions', 'shifts'],
+  Coordinator: ['profile', 'approvals', 'volunteers', 'accounts', 'shifts', 'categories', 'reports']
+};
+
+async function loadUser() {
+  const response = await fetch('/api/session', { cache: 'no-store' });
+  if (!response.ok) throw new Error('Could not connect to Java. Start make run and refresh this page.');
+  const lines = (await response.text()).split('\n');
+  csrf = lines[0];
+  role = (lines[1] || '').trim();
+  document.getElementById('account').textContent = role ? 'Logged in as ' + role : '';
+  for (const link of document.querySelectorAll('#navigation [data-roles]')) {
+    link.hidden = !link.dataset.roles.split(' ').includes(role || 'Guest');
+  }
+}
+
+async function loadScreen(name) {
+  const allowed = screens[role || 'Guest'];
+  if (!allowed.includes(name)) name = role ? 'profile' : 'login';
+  currentScreen = name;
+  const content = document.getElementById('screen');
+  content.textContent = 'Loading...';
+  try {
+    const response = await fetch('/forms/' + name + '.html', { cache: 'no-store' });
+    if (!response.ok) throw new Error('This screen could not be loaded.');
+    const html = await response.text();
+    if (currentScreen !== name) return;
+    // Only our static HTML screen files are inserted here, never record/user text.
+    content.innerHTML = html;
+    history.replaceState(null, '', '#' + name);
+    document.title = content.querySelector('h2').textContent + ' — Food Bank';
+    for (const link of document.querySelectorAll('#navigation a')) {
+      const active = link.hash === '#' + name;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    }
+    for (const part of content.querySelectorAll('[data-roles]')) {
+      part.hidden = !part.dataset.roles.split(' ').includes(role);
+    }
+    for (const select of content.querySelectorAll('select[data-options]')) {
+      if (!select.closest('[hidden]')) await fillChoice(select);
+    }
+    if (currentScreen === name && document.getElementById('recordSearch')) await loadRecords();
+  } catch (error) {
+    document.getElementById('message').textContent = error.message;
+  }
+}
+
+async function fillChoice(select) {
+  const values = new URLSearchParams({ type: select.dataset.options });
+  if (select.dataset.parent) {
+    const parent = select.form.elements[select.dataset.parent];
+    if (!parent.value) {
+      select.innerHTML = '<option value="">Choose a distribution first</option>';
+      return;
+    }
+    values.set(select.dataset.parent, parent.value);
+  }
+  try {
+    const response = await fetch('/api/options?' + values, { cache: 'no-store' });
+    if (!response.ok) throw new Error('Choices could not be loaded. Try logging in again.');
+    // This endpoint returns only server-escaped option tags, not arbitrary markup.
+    select.innerHTML = await response.text();
+    if (select.options.length > 1 && select.options[0].value === '') {
+      select.options[0].textContent = select.dataset.empty;
+    }
+    const search = select.closest('.choice').querySelector('input[type="search"]');
+    search.value = '';
+  } catch (error) {
+    select.innerHTML = '<option value="">No choices available</option>';
+    document.getElementById('message').textContent = error.message;
+  }
+}
+
+function filterChoices(search) {
+  const select = search.closest('.choice').querySelector('select');
+  const text = search.value.toLowerCase();
+  for (const option of select.options) {
+    option.hidden = option.value !== '' && !option.textContent.toLowerCase().includes(text);
+  }
+  if (select.selectedOptions.length && select.selectedOptions[0].hidden) select.value = '';
+}
+
+function loadDistributionItems(distribution) {
+  const items = distribution.form.querySelector('select[data-parent="distributionId"]');
+  if (items) fillChoice(items);
+}
+
+async function sendForm(event) {
+  event.preventDefault();
+  const form = event.target;
+  const button = event.submitter;
+  if (button) button.disabled = true;
+  try {
+    const values = new URLSearchParams(new FormData(form));
+    values.set('csrf', csrf);
+    const response = await fetch('/api/action', { method: 'POST', body: values });
+    document.getElementById('message').textContent = await response.text();
+    await loadUser();
+    if (response.ok) {
+      form.reset();
+      let target = currentScreen;
+      if (values.get('action') === 'login') target = 'profile';
+      if (values.get('action') === 'logout' || values.get('action') === 'register') target = 'login';
+      if (location.hash === '#' + target) await loadScreen(target);
+      else location.hash = target;
+    } else if (!screens[role || 'Guest'].includes(currentScreen)) {
+      await loadScreen(role ? 'profile' : 'login');
+    }
+  } catch (error) {
+    document.getElementById('message').textContent = error.message || 'Could not connect to Java.';
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function loadRecords(event) {
+  if (event) event.preventDefault();
+  const form = document.getElementById('recordSearch');
+  const output = document.getElementById('records');
+  if (!form || !output) return;
+  try {
+    const values = new URLSearchParams(new FormData(form));
+    const response = await fetch('/api/records?' + values, { cache: 'no-store' });
+    const text = await response.text();
+    if (document.getElementById('records') === output) output.textContent = text;
+  } catch (error) {
+    if (document.getElementById('records') === output) output.textContent = 'Could not load records. Check that Java is running.';
+  }
+}
+
+window.addEventListener('hashchange', function () { loadScreen(location.hash.slice(1)); });
+loadUser().then(function () { return loadScreen(location.hash.slice(1)); }).catch(function (error) {
+  document.getElementById('message').textContent = error.message;
+  loadScreen('login');
+});
+</script>
+</body>
+</html>

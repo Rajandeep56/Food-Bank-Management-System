@@ -1,0 +1,21 @@
+<h2>Recipient approvals</h2>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="pending">
+  <label>Recipient name <input name="name"></label>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<form onsubmit="sendForm(event)">
+    <h3>Approve recipient</h3><input type="hidden" name="action" value="reviewRecipient"><input type="hidden" name="decision" value="approve">
+    <div class="choice">
+  <label>Find recipient <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Recipient <select name="userId" data-options="pending" data-empty="Choose recipient" required><option value="">Loading choices...</option></select></label>
+</div><button>Approve recipient</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Reject recipient</h3><input type="hidden" name="action" value="reviewRecipient"><input type="hidden" name="decision" value="reject">
+    <div class="choice">
+  <label>Find recipient <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Recipient <select name="userId" data-options="pending" data-empty="Choose recipient" required><option value="">Loading choices...</option></select></label>
+</div><button>Reject recipient</button>
+  </form>

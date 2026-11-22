@@ -1,0 +1,61 @@
+<h2>Distributions</h2>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="distributions">
+  <label data-roles="Volunteer">Recipient name <input name="recipient"></label><label>From <input type="date" name="from"></label><label>To <input type="date" name="to"></label>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<div data-roles="Volunteer"><p>Your assigned shift must cover the pickup time to change a distribution.</p></div>
+<div data-roles="Volunteer">
+<form onsubmit="sendForm(event)">
+    <h3>Add distribution item</h3><input type="hidden" name="action" value="addDistributionItem">
+    <div class="choice">
+  <label>Find distribution <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Distribution <select name="distributionId" data-options="distributions" data-empty="Choose distribution" onchange="loadDistributionItems(this)" required><option value="">Loading choices...</option></select></label>
+</div>
+    <div class="choice">
+  <label>Find inventory <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Inventory <select name="inventoryId" data-options="stock" data-empty="Choose inventory" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>Quantity <input type="number" name="quantity" min="1" step="1" required></label><button>Add item</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Change distribution item quantity</h3><input type="hidden" name="action" value="editDistributionItem"><input type="hidden" name="operation" value="update">
+    <div class="choice">
+  <label>Find distribution <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Distribution <select name="distributionId" data-options="distributions" data-empty="Choose distribution" onchange="loadDistributionItems(this)" required><option value="">Loading choices...</option></select></label>
+</div>
+    <div class="choice">
+  <label>Find inventory <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Inventory <select name="inventoryId" data-options="distributionItems" data-empty="Choose inventory" data-parent="distributionId" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>New quantity <input type="number" name="quantity" min="1" step="1" required></label><button>Save quantity</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Remove distribution item</h3><input type="hidden" name="action" value="editDistributionItem"><input type="hidden" name="operation" value="remove">
+    <div class="choice">
+  <label>Find distribution <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Distribution <select name="distributionId" data-options="distributions" data-empty="Choose distribution" onchange="loadDistributionItems(this)" required><option value="">Loading choices...</option></select></label>
+</div>
+    <div class="choice">
+  <label>Find inventory <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Inventory <select name="inventoryId" data-options="distributionItems" data-empty="Choose inventory" data-parent="distributionId" required><option value="">Loading choices...</option></select></label>
+</div><button>Remove item</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Update pickup status</h3><input type="hidden" name="action" value="pickupStatus">
+    <div class="choice">
+  <label>Find distribution <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Distribution <select name="distributionId" data-options="pickups" data-empty="Choose distribution" onchange="loadDistributionItems(this)" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>Status <select name="status"><option value="FULFILLED">Fulfilled</option><option value="MISSED">Missed</option><option value="DELAYED">Delayed</option></select></label>
+    <button>Save status</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Delete scheduled distribution</h3><input type="hidden" name="action" value="deleteDistribution">
+    <div class="choice">
+  <label>Find distribution <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Distribution <select name="distributionId" data-options="distributions" data-empty="Choose distribution" onchange="loadDistributionItems(this)" required><option value="">Loading choices...</option></select></label>
+</div><button>Delete distribution</button>
+  </form>
+</div>

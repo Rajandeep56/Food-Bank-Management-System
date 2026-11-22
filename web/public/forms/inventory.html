@@ -1,0 +1,43 @@
+<h2>Inventory</h2>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="inventory">
+  <label>Item name <input name="item"></label><div class="choice">
+  <label>Find category <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Category <select name="category" data-options="categories" data-empty="All categories"><option value="">Loading choices...</option></select></label>
+</div>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<form onsubmit="sendForm(event)">
+    <h3>Add inventory directly</h3><input type="hidden" name="action" value="addInventory">
+    <label>Item <input name="name" required></label><div class="choice">
+  <label>Find category <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Category <select name="categoryId" data-options="categories" data-empty="Choose category" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>Quantity <input type="number" name="quantity" min="1" step="1" required></label><label>Unit <input name="unit" required></label>
+    <label>Expiry date (optional) <input type="date" name="expiry"></label><button>Add inventory</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Change inventory quantity</h3><input type="hidden" name="action" value="inventoryQuantity">
+    <div class="choice">
+  <label>Find inventory <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Inventory <select name="inventoryId" data-options="inventory" data-empty="Choose inventory" required><option value="">Loading choices...</option></select></label>
+</div>
+    <label>New quantity <input type="number" name="quantity" min="0" step="1" required></label><button>Save quantity</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Change inventory details</h3><input type="hidden" name="action" value="inventoryDetails">
+    <div class="choice">
+  <label>Find inventory <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Inventory <select name="inventoryId" data-options="inventory" data-empty="Choose inventory" required><option value="">Loading choices...</option></select></label>
+</div><label>New name <input name="name" required></label>
+    <label>New expiry date (optional) <input type="date" name="expiry"></label><button>Save details</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Remove inventory</h3><input type="hidden" name="action" value="deleteInventory">
+    <p>Remaining stock is written off and history is kept.</p>
+    <div class="choice">
+  <label>Find inventory <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>Inventory <select name="inventoryId" data-options="inventory" data-empty="Choose inventory" required><option value="">Loading choices...</option></select></label>
+</div><button>Remove inventory</button>
+  </form>

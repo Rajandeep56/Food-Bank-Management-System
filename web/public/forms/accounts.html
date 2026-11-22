@@ -1,0 +1,23 @@
+<h2>All accounts</h2>
+<form id="recordSearch" onsubmit="loadRecords(event)">
+  <input type="hidden" name="type" value="users">
+  <label>Name <input name="name"></label>
+  <button>Search records</button>
+</form>
+<pre id="records" aria-live="polite">Loading records...</pre>
+<form onsubmit="sendForm(event)">
+    <h3>Change account contact details</h3><input type="hidden" name="action" value="updateUser">
+    <div class="choice">
+  <label>Find user <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>User <select name="userId" data-options="users" data-empty="Choose user" required><option value="">Loading choices...</option></select></label>
+</div><label>New name <input name="name" required></label>
+    <label>New phone <input type="tel" name="phone" required></label><button>Save account</button>
+  </form>
+<form onsubmit="sendForm(event)">
+    <h3>Deactivate account</h3><input type="hidden" name="action" value="deactivateUser">
+    <p>The account cannot log in after deactivation. Its history is kept.</p>
+    <div class="choice">
+  <label>Find user <input type="search" placeholder="Type a name to filter choices" oninput="filterChoices(this)"></label>
+  <label>User <select name="userId" data-options="users" data-empty="Choose user" required><option value="">Loading choices...</option></select></label>
+</div><button>Deactivate account</button>
+  </form>
