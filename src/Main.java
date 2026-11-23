@@ -2,6 +2,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.TimeZone;
 import Services.AIEngine;
@@ -37,5 +38,21 @@ public class Main {
             server.stop(0);
             aiEngine.stopScheduler();
         }));
+        deliver(app);
     }
+
+    static void deliver(FoodBankApp app) {
+        synchronized (app.inventory) {
+            try {
+                LocalDateTime now = LocalDateTime.now();
+                app.alerts.retryPending();
+                app.alerts.checkInventoryAtRisk(now.toLocalDate());
+                app.alerts.checkMissedPickups(now.toLocalDate());
+                app.alerts.checkDelayedPickups(now);
+            } catch (RuntimeException e) {
+                System.err.println("Alert check could not finish. The website is still running.");
+            }
+        }
+    }
+
 }

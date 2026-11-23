@@ -27,8 +27,7 @@ public class NotificationService {
             DistributionRepository distributions, FoodHamperRequestRepository requests,
             CategoryRepository categories, ExpiryRiskDetector expiry, DecliningStockDetector stock) {
         this(notifications, users, distributions, requests, categories, expiry, stock,
-            new EmailService(), System.getenv().getOrDefault("EMAIL_MODE", "SIMULATION"),
-            System.getenv("COORDINATOR_EMAIL"));
+            new EmailService(), "LIVE", System.getenv("COORDINATOR_EMAIL"));
     }
 
     // Explicit delivery dependency makes provider failure testable without sending email.
@@ -57,7 +56,6 @@ public class NotificationService {
         this.coordinatorEmail = coordinatorEmail;
     }
 
-    // Kept for existing callers. Inventory alerts belong to coordinators, not shifts.
     public void setShiftRepository(VolunteerShiftRepository shifts) {
         Objects.requireNonNull(shifts, "Shift repository cannot be null");
     }
@@ -169,15 +167,14 @@ public class NotificationService {
                 String deliveryKey = DatabaseConnection.getSchemaName() + "/notification/" + notification.getNotificationId();
                 emailService.sendEmail(notification.getRecipientEmail(), notification.getType().name(),
                     notification.getMessage(), deliveryKey);
+                System.out.println("Email accepted | To: " + notification.getRecipientEmail() + " | Type: " + notification.getType());
             } else {
-                // DEMO must never call the provider, even when API credentials are present.
-                System.out.println("[" + emailMode + "] " + notification.getType() + " notification #" + notification.getNotificationId());
+                System.out.println("[" + emailMode + "] To: " + notification.getRecipientEmail() + " | Type: " + notification.getType());
             }
             dbWriter.markNotificationSent(notification.getNotificationId());
             notification.markSent();
         } catch (Exception e) {
-            // Keep pending for retry. Provider responses may contain personal information.
-            System.err.println("Notification #" + notification.getNotificationId() + " delivery failed; pending retry");
+            System.err.println("Email pending retry | To: " + notification.getRecipientEmail() + " | Type: " + notification.getType());
         }
     }
 
