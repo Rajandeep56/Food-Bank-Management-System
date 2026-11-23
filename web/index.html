@@ -86,7 +86,6 @@ async function loadScreen(name) {
     if (!response.ok) throw new Error('This screen could not be loaded.');
     const html = await response.text();
     if (currentScreen !== name) return;
-    // Only our static HTML screen files are inserted here, never record/user text.
     content.innerHTML = html;
     history.replaceState(null, '', '#' + name);
     document.title = content.querySelector('h2').textContent + ' — Food Bank';

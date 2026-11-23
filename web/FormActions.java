@@ -6,7 +6,6 @@ import Services.*;
 import model.*;
 import common.ReportPeriodType;
 
-// Translate submitted form fields into existing Java service calls.
 class FormActions {
     static String submit(FoodBankApp app, WebSession session, Map<String, String> form) {
         AuthService auth = session.auth;

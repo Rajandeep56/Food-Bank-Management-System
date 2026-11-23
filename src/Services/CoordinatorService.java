@@ -117,8 +117,6 @@ public class CoordinatorService {
         return categoryRepository.findAll();
     }
 
-    // ---------- helper ----------
-
 
     private void requireCoordinator(AuthService authService) {
         authService.requireRole("Coordinator");
