@@ -1,8 +1,9 @@
 # Food-Bank-Management-System
 
-# In-Memory WorkFlow:
-Volunteer records x qty donated by donar xyz
-DonationService validates and cordinates the workflow
-DonationRepository stores donation records 
- InventoryService records inventory and history
-Donation status becomes completed
+# How to Setup
+
+Setup DB  : run src/scripts/db.sql && run src/scripts/seed.sql
+
+Setup Server : make build && make run
+
+Use UI : http://localhost:8080/#login
